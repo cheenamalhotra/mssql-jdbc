@@ -3,7 +3,31 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) 
 
-## [6.2.0] Stable Release
+## [6.3.0] Preview Release
+### Added
+- Added support for sql_variant datatype [#387](https://github.com/Microsoft/mssql-jdbc/pull/387)
+- Added more Junit tests for Always Encrypted [#404](https://github.com/Microsoft/mssql-jdbc/pull/404)
+
+### Fixed Issues 
+- Fixed Turkey locale issue when lowercasing an "i" [#384](https://github.com/Microsoft/mssql-jdbc/pull/384)
+- Fixed issue with incorrect parameter count for INSERT with subquery [#373](https://github.com/Microsoft/mssql-jdbc/pull/373)
+- Fixed issue with running DDL in PreparedStatement [#372](https://github.com/Microsoft/mssql-jdbc/pull/372)
+- Fixed issue with parameter metadata with whitespace characters [#371](https://github.com/Microsoft/mssql-jdbc/pull/371)
+- Fixed handling of explicit boxing and unboxing [#84](https://github.com/Microsoft/mssql-jdbc/pull/84)
+- Fixed metadata caching batch query issue [#393](https://github.com/Microsoft/mssql-jdbc/pull/393)
+- Fixed javadoc issue for the newest maven version [#385](https://github.com/Microsoft/mssql-jdbc/pull/385)
+
+### Changed
+- Updated ADAL4J dependency to version 1.2.0 [#392](https://github.com/Microsoft/mssql-jdbc/pull/392)
+- Updated azure-keyvault dependency to version 1.0.0 [#397](https://github.com/Microsoft/mssql-jdbc/pull/397)
+
+## [6.2.1] Hotfix & Stable Release
+### Fixed Issues 
+- Fixed queries without parameters using preparedStatement [#372](https://github.com/Microsoft/mssql-jdbc/pull/372)
+### Changed
+- Removed metadata caching [#377](https://github.com/Microsoft/mssql-jdbc/pull/377)
+
+## [6.2.0] Release Candidate
 ### Added
 - Added TVP and BulkCopy random data test for all data types with server cursor [#319](https://github.com/Microsoft/mssql-jdbc/pull/319)
 - Added AE setup and test [#337](https://github.com/Microsoft/mssql-jdbc/pull/337),[328](https://github.com/Microsoft/mssql-jdbc/pull/328)

@@ -1,5 +1,6 @@
 [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/Microsoft/mssql-jdbc/master/LICENSE)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.microsoft.sqlserver/mssql-jdbc/badge.svg)](http://mvnrepository.com/artifact/com.microsoft.sqlserver/mssql-jdbc)
+[![codecov.io](http://codecov.io/github/Microsoft/mssql-jdbc/coverage.svg?branch=master)](http://codecov.io/github/Microsoft/mssql-jdbc?branch=master)
 [![Javadocs](http://javadoc.io/badge/com.microsoft.sqlserver/mssql-jdbc.svg)](http://javadoc.io/doc/com.microsoft.sqlserver/mssql-jdbc)
 [![Gitter](https://img.shields.io/gitter/room/badges/shields.svg)](https://gitter.im/Microsoft/mssql-developers)
 </br>
@@ -17,7 +18,7 @@ SQL Server Team
 
 Let us know how you think we're doing.
 
-<a href="https://www.surveybuilder.com/s/9TQ1T"><img style="float: right;"  height="67" width="156" src="https://meetsstorenew.blob.core.windows.net/contianerhd/survey.png?st=2017-02-17T22%3A03%3A00Z&se=2100-02-18T22%3A03%3A00Z&sp=rl&sv=2015-12-11&sr=b&sig=DJSFoihBptSvO%2BjvWzwpHecf8o5yfAbJoD2qW5oB8tc%3D"></a>
+<a href="https://aka.ms/mssqljdbcsurvey"><img style="float: right;"  height="67" width="156" src="https://meetsstorenew.blob.core.windows.net/contianerhd/survey.png?st=2017-02-17T22%3A03%3A00Z&se=2100-02-18T22%3A03%3A00Z&sp=rl&sv=2015-12-11&sr=b&sig=DJSFoihBptSvO%2BjvWzwpHecf8o5yfAbJoD2qW5oB8tc%3D"></a>
 
 ## Status of Most Recent Builds
 | AppVeyor (Windows)       | Travis CI (Linux) |
@@ -61,33 +62,35 @@ To build the jar files, you must use Java 8 with Maven.  You can choose to build
 ## Resources
 
 ### Documentation
+API reference documentation is available in [Javadocs](https://aka.ms/jdbcjavadocs).
+
 This driver is documented on [Microsoft's Documentation web site](https://msdn.microsoft.com/en-us/library/mt720657).
 
 ### Sample Code
 For samples, please see the src\sample directory.
 
 ### Download the DLLs
-For some features (e.g. Integrated Authentication and Distributed Transactions), you may need to use the `sqljdbc_xa` and `sqljdbc_auth` DLLs. They can be downloaded from the [Microsoft Download Center](https://www.microsoft.com/en-us/download/details.aspx?displaylang=en&id=11774)
+For some features (e.g. Integrated Authentication and Distributed Transactions), you may need to use the `sqljdbc_xa` and `sqljdbc_auth` DLLs. They can be downloaded from the [Microsoft Download Center](https://go.microsoft.com/fwlink/?linkid=852460)
 
 ### Download the driver
 Don't want to compile anything?
 
-We're now on the Maven Central Repository. Add the following to your POM file:
+We're now on the Maven Central Repository. Add the following to your POM file to get the most stable release:
 ```xml
 <dependency>
 	<groupId>com.microsoft.sqlserver</groupId>
 	<artifactId>mssql-jdbc</artifactId>
-	<version>6.1.0.jre8</version>
+	<version>6.2.1.jre8</version>
 </dependency>
 ```
-The driver can be downloaded from the [Microsoft Download Center](https://www.microsoft.com/en-us/download/details.aspx?displaylang=en&id=11774).
+The driver can be downloaded from the [Microsoft Download Center](https://go.microsoft.com/fwlink/?linkid=852460).
 
 To get the latest preview version of the driver, add the following to your POM file: 
 ```xml
 <dependency>
 	<groupId>com.microsoft.sqlserver</groupId>
 	<artifactId>mssql-jdbc</artifactId>
-	<version>6.1.7.jre8-preview</version>
+	<version>6.3.0.jre8-preview</version>
 </dependency>
 ```
 
@@ -117,16 +120,17 @@ Projects that require either of the two features need to explicitly declare the 
 <dependency>
 	<groupId>com.microsoft.sqlserver</groupId>
 	<artifactId>mssql-jdbc</artifactId>
-	<version>6.1.0.jre8</version>
+	<version>6.3.0.jre8-preview</version>
 	<scope>compile</scope>
 </dependency>
 
 <dependency>
 	<groupId>com.microsoft.azure</groupId>
 	<artifactId>azure-keyvault</artifactId>
-	<version>0.9.7</version>
+	<version>1.0.0</version>
 </dependency>
 ```
+***Please note*** as of the v6.3.0-preview, the way to construct a `SQLServerColumnEncryptionAzureKeyVaultProvider` object has changed. Please refer to this [Wiki](https://github.com/Microsoft/mssql-jdbc/wiki/New-Constructor-Definition-for-SQLServerColumnEncryptionAzureKeyVaultProvider-after-6.3.0-Preview-Release) page for more information.
 
 ## Guidelines for Creating Pull Requests
 We love contributions from the community.  To help improve the quality of our code, we encourage you to use the mssql-jdbc_formatter.xml formatter provided on all pull requests.
