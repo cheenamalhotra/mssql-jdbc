@@ -36,8 +36,8 @@ public final class SQLServerDataTable {
      */
     // Name used in CREATE TYPE
     public SQLServerDataTable() throws SQLServerException {
-        columnMetadata = new LinkedHashMap<Integer, SQLServerDataColumn>();
-        rows = new HashMap<Integer, Object[]>();
+        columnMetadata = new LinkedHashMap<>();
+        rows = new HashMap<>();
     }
 
     /**
@@ -218,6 +218,8 @@ public final class SQLServerDataTable {
             case TIME:
             case TIMESTAMP:
             case DATETIMEOFFSET:
+            case DATETIME:
+            case SMALLDATETIME:
                 // Sending temporal types as string. Error from database is thrown if parsing fails
                 // no need to send precision for temporal types, string literal will never exceed DataTypes.SHORT_VARTYPE_MAX_BYTES
 
