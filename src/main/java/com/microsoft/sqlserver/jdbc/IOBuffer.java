@@ -72,7 +72,6 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
-import javax.xml.bind.DatatypeConverter;
 
 final class TDS {
     // TDS protocol versions
@@ -1622,7 +1621,22 @@ final class TDSChannel {
 
                 tm = new TrustManager[] {new PermissiveX509TrustManager(this)};
             }
-
+            // Otherwise, we'll check if a specific TrustManager implemenation has been requested and
+            // if so instantiate it, optionally specifying a constructor argument to customize it.
+            else if (con.getTrustManagerClass() != null) {
+                Class<?> tmClass = Class.forName(con.getTrustManagerClass());
+                if (!TrustManager.class.isAssignableFrom(tmClass)) {
+                    throw new IllegalArgumentException(
+                            "The class specified by the trustManagerClass property must implement javax.net.ssl.TrustManager");
+                }
+                String constructorArg = con.getTrustManagerConstructorArg();
+                if (constructorArg == null) {
+                    tm = new TrustManager[] {(TrustManager) tmClass.getDeclaredConstructor().newInstance()};
+                }
+                else {
+                    tm = new TrustManager[] {(TrustManager) tmClass.getDeclaredConstructor(String.class).newInstance(constructorArg)};
+                }
+            }
             // Otherwise, we'll validate the certificate using a real TrustManager obtained
             // from the a security provider that is capable of validating X.509 certificates.
             else {
@@ -1798,7 +1812,14 @@ final class TDSChannel {
 
             // It is important to get the localized message here, otherwise error messages won't match for different locales.
             String errMsg = e.getLocalizedMessage();
-
+            // If the message is null replace it with the non-localized message or a dummy string. This can happen if a custom
+            // TrustManager implementation is specified that does not provide localized messages.
+            if (errMsg == null) {
+                errMsg = e.getMessage();
+            }
+            if (errMsg == null) {
+                errMsg = "";
+            }
             // The error message may have a connection id appended to it. Extract the message only for comparison.
             // This client connection id is appended in method checkAndAppendClientConnId().
             if (errMsg.contains(SQLServerException.LOG_CLIENT_CONNECTION_ID_PREFIX)) {
@@ -4934,7 +4955,7 @@ final class TDSWriter {
                 isShortValue = columnPair.getValue().precision <= DataTypes.SHORT_VARTYPE_MAX_BYTES;
                 isNull = (null == currentObject);
                 if (currentObject instanceof String)
-                    dataLength = isNull ? 0 : (toByteArray(currentObject.toString())).length;
+                    dataLength = isNull ? 0 : (ParameterUtils.HexToBin(currentObject.toString())).length;
                 else
                     dataLength = isNull ? 0 : ((byte[]) currentObject).length;
                 if (!isShortValue) {
@@ -4953,7 +4974,7 @@ final class TDSWriter {
                         if (dataLength > 0) {
                             writeInt(dataLength);
                             if (currentObject instanceof String)
-                                writeBytes(toByteArray(currentObject.toString()));
+                                writeBytes(ParameterUtils.HexToBin(currentObject.toString()));
                             else
                                 writeBytes((byte[]) currentObject);
                         }
@@ -4967,7 +4988,7 @@ final class TDSWriter {
                     else {
                         writeShort((short) dataLength);
                         if (currentObject instanceof String)
-                            writeBytes(toByteArray(currentObject.toString()));
+                            writeBytes(ParameterUtils.HexToBin(currentObject.toString()));
                         else
                             writeBytes((byte[]) currentObject);
                     }
@@ -5004,9 +5025,6 @@ final class TDSWriter {
         writeByte(probBytes);
     }
 
-    private static byte[] toByteArray(String s) {
-        return DatatypeConverter.parseHexBinary(s);
-    }
 
     void writeTVPColumnMetaData(TVP value) throws SQLServerException {
         boolean isShortValue;
