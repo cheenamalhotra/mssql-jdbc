@@ -1413,7 +1413,6 @@ public class SQLServerConnection implements ISQLServerConnection {
                     sPropValue = Boolean.toString(SQLServerDriverBooleanProperty.SEND_TIME_AS_DATETIME.getDefaultValue());
                     activeConnectionProperties.setProperty(sPropKey, sPropValue);
                 }
-            }
 
             // Must be set after STATEMENT_POOLING_CACHE_SIZE
             sPropKey = SQLServerDriverBooleanProperty.DISABLE_STATEMENT_POOLING.toString();
