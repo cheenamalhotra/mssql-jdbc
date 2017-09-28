@@ -25,7 +25,6 @@ import java.text.MessageFormat;
 import java.util.Enumeration;
 import java.util.Locale;
 
-import javax.xml.bind.DatatypeConverter;
 
 /**
  * The implementation of the key store provider for the Windows Certificate Store. This class enables using keys stored in the Windows Certificate
@@ -140,13 +139,13 @@ public final class SQLServerColumnEncryptionCertificateStoreProvider extends SQL
         byte[] der = cert.getEncoded();
         md.update(der);
         byte[] digest = md.digest();
-        return DatatypeConverter.printHexBinary(digest);
+        return Util.bytesToHexString(digest, digest.length);
     }
 
     private CertificateDetails getCertificateByThumbprint(String storeLocation,
             String thumbprint,
             String masterKeyPath) throws SQLServerException {
-        FileInputStream fis = null;
+        FileInputStream fis;
 
         if ((null == keyStoreDirectoryPath)) {
             MessageFormat form = new MessageFormat(SQLServerException.getErrString("R_AEKeyPathEmptyOrReserved"));
@@ -169,7 +168,7 @@ public final class SQLServerColumnEncryptionCertificateStoreProvider extends SQL
         File keyStoreDirectory = keyStoreFullPath.toFile();
         File[] listOfFiles = keyStoreDirectory.listFiles();
 
-        if ((null == listOfFiles) || ((null != listOfFiles) && (0 == listOfFiles.length))) {
+        if ((null == listOfFiles) || (0 == listOfFiles.length)) {
             throw new SQLServerException(SQLServerException.getErrString("R_KeyStoreNotFound"), null);
         }
 
@@ -232,7 +231,7 @@ public final class SQLServerColumnEncryptionCertificateStoreProvider extends SQL
             byte[] encryptedColumnEncryptionKey) throws SQLServerException {
         windowsCertificateStoreLogger.entering(SQLServerColumnEncryptionCertificateStoreProvider.class.getName(), "decryptColumnEncryptionKey",
                 "Decrypting Column Encryption Key.");
-        byte[] plainCek = null;
+        byte[] plainCek;
         if (isWindows) {
             plainCek = decryptColumnEncryptionKeyWindows(masterKeyPath, encryptionAlgorithm, encryptedColumnEncryptionKey);
         }
