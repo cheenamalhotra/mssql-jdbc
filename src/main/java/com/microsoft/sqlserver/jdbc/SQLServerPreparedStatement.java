@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.Vector;
 import java.util.logging.Level;
 
@@ -95,6 +96,11 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
 
     /** Set of parameter values in the current batch */
     ArrayList<Parameter[]> batchParamValues;
+
+    /**
+     * Client connection id is retained when statement is prepared so that reconnection is identified when change in connection id is observed.
+     */
+    private UUID preparedClientConnectionId;
 
     /** The prepared statement handle returned by the server */
     private int prepStmtHandle = 0;
@@ -967,8 +973,10 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
             Parameter[] params,
             boolean hasNewTypeDefinitions,
             boolean hasExistingTypeDefinitions) throws SQLServerException {
+        UUID currentClientConnectionId = connection.getClientConnectionId();
         
-        boolean needsPrepare = (hasNewTypeDefinitions && hasExistingTypeDefinitions) || !hasPreparedStatementHandle();
+        // this condition is modified to account for connection id.
+        boolean needsPrepare = (hasNewTypeDefinitions && hasExistingTypeDefinitions) || !hasPreparedStatementHandle()  || preparedClientConnectionId != currentClientConnectionId;
 
         // Cursors don't use statement pooling.
         if (isCursorable(executeMethod)) {
@@ -977,6 +985,7 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
                 buildServerCursorPrepExecParams(tdsWriter);
             else
                 buildServerCursorExecParams(tdsWriter);
+            preparedClientConnectionId = currentClientConnectionId;
         }
         else {
             // Move overhead of needing to do prepare & unprepare to only use cases that need more than one execution.
@@ -996,7 +1005,6 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
         }
 
         sendParamsByRPC(tdsWriter, params);
-
         return needsPrepare;
     }
 
@@ -2349,7 +2357,7 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
             String tvpName) throws SQLServerException {
         if ((null == tvpName) || (0 == tvpName.length())) {
             // Check if the CallableStatement/PreparedStatement is a stored procedure call
-            if(null != this.procedureName) {
+            if (null != this.procedureName) {
                 SQLServerParameterMetaData pmd = (SQLServerParameterMetaData) this.getParameterMetaData();
                 pmd.isTVP = true;
                 
