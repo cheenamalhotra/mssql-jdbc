@@ -1413,16 +1413,15 @@ public class SQLServerConnection implements ISQLServerConnection {
                     sPropValue = Boolean.toString(SQLServerDriverBooleanProperty.SEND_TIME_AS_DATETIME.getDefaultValue());
                     activeConnectionProperties.setProperty(sPropKey, sPropValue);
                 }
-            }
 
-            // Must be set after STATEMENT_POOLING_CACHE_SIZE
-            sPropKey = SQLServerDriverBooleanProperty.DISABLE_STATEMENT_POOLING.toString();
-            sPropValue = activeConnectionProperties.getProperty(sPropKey);
-            if (null != sPropValue) {
-                // If disabled set cache size to 0 if disabled.
-                if(booleanPropertyOn(sPropKey, sPropValue))
-                    this.setStatementPoolingCacheSize(0);
-            }
+	            // Must be set after STATEMENT_POOLING_CACHE_SIZE
+	            sPropKey = SQLServerDriverBooleanProperty.DISABLE_STATEMENT_POOLING.toString();
+	            sPropValue = activeConnectionProperties.getProperty(sPropKey);
+	            if (null != sPropValue) {
+	                // If disabled set cache size to 0 if disabled.
+	                if(booleanPropertyOn(sPropKey, sPropValue))
+	                    this.setStatementPoolingCacheSize(0);
+	            }
 
                 sendTimeAsDatetime = booleanPropertyOn(sPropKey, sPropValue);
 
