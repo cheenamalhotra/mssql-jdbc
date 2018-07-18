@@ -364,7 +364,11 @@ final class Parameter {
                 || JavaType.CLOB == javaType || JavaType.OBJECT == javaType)) {
             jdbcType = getSSPAUJDBCType(jdbcType);
         }
-
+        
+        if(jdbcType.equals(JDBCType.CHAR) || jdbcType.equals(JDBCType.NCHAR)) {
+            this.valueLength = Util.getValueLengthBaseOnJavaType(null!=value?value.toString():value, JavaType.STRING, precision, scale, jdbcType);
+        }
+        
         DTV newDTV = new DTV();
         newDTV.setValue(con.getDatabaseCollation(), jdbcType, value, javaType, streamSetterArgs, calendar, scale, con,
                 forceEncrypt);
@@ -707,6 +711,45 @@ final class Parameter {
                     break;
 
                 case CHAR:
+                    // To avoid the server side cost of re-preparing, once a "long" type, always a "long" type...
+                    if (VARCHAR_MAX.equals(param.typeDefinition) || TEXT.equals(param.typeDefinition))
+                        break;
+
+                    // Adding for case useColumnEncryption=true & sendStringParametersAsUnicode=false
+                    if (param.shouldHonorAEForParameter && (null != jdbcTypeSetByUser)
+                            && !(null == param.getCryptoMetadata() && param.renewDefinition)) {
+                        /*
+                         * This means AE is ON in the connection, and (1) this is either the first round to SQL Server
+                         * to get encryption meta data, or (2) this is the second round of renewing meta data and
+                         * parameter is encrypted In both of these cases we need to send specific type info, otherwise
+                         * generic type info can be used as before.
+                         */
+                        if (0 == valueLength) {
+                            // Workaround for the issue when inserting empty string and null into encrypted columns
+                            param.typeDefinition = "char(1)";
+                            valueLength++;
+                        } else {
+                            param.typeDefinition = "char(" + valueLength + ")";
+
+//                            if (DataTypes.SHORT_VARTYPE_MAX_BYTES <= valueLength) {
+//                                param.typeDefinition = VARCHAR_MAX;
+//                            }
+                        }
+                    } else {
+                        if (0 == valueLength) {
+                            // Workaround for the issue when inserting empty string and null into encrypted columns
+                            param.typeDefinition = "char(1)";
+                            valueLength++;
+                        } else {
+                            param.typeDefinition = "char(" + valueLength + ")";
+
+//                            if (DataTypes.SHORT_VARTYPE_MAX_BYTES <= valueLength) {
+//                                param.typeDefinition = VARCHAR_MAX;
+//                            }
+                        }
+                    }
+                        
+                    break;
                 case VARCHAR:
                     // To avoid the server side cost of re-preparing, once a "long" type, always a "long" type...
                     if (VARCHAR_MAX.equals(param.typeDefinition) || TEXT.equals(param.typeDefinition))
@@ -801,6 +844,81 @@ final class Parameter {
                     break;
 
                 case NCHAR:
+                    // To avoid the server side cost of re-preparing, once a "long" type, always a "long" type...
+                    if (NVARCHAR_MAX.equals(param.typeDefinition) || NTEXT.equals(param.typeDefinition))
+                        break;
+
+                    if (param.shouldHonorAEForParameter
+                            && !(null == param.getCryptoMetadata() && param.renewDefinition)) {
+                        /*
+                         * This means AE is ON in the connection, and (1) this is either the first round to SQL Server
+                         * to get encryption meta data, or (2) this is the second round of renewing meta data and
+                         * parameter is encrypted In both of these cases we need to send specific type info, otherwise
+                         * generic type info can be used as before.
+                         */
+                        if ((null != jdbcTypeSetByUser)
+                                && ((jdbcTypeSetByUser == JDBCType.VARCHAR) || (jdbcTypeSetByUser == JDBCType.CHAR)
+                                        || (JDBCType.LONGVARCHAR == jdbcTypeSetByUser))) {
+                            if (0 == valueLength) {
+                                // Workaround for the issue when inserting empty string and null into encrypted columns
+                                param.typeDefinition = "char(1)";
+                                valueLength++;
+                            } else {
+                                param.typeDefinition = "char(" + valueLength + ")";
+
+//                                if (DataTypes.SHORT_VARTYPE_MAX_BYTES < valueLength) {
+//                                    param.typeDefinition = VARCHAR_MAX;
+//                                }
+                            }
+
+//                            if (JDBCType.LONGVARCHAR == jdbcTypeSetByUser) {
+//                                param.typeDefinition = VARCHAR_MAX;
+//                            }
+                        } else if ((null != jdbcTypeSetByUser)
+                                && ((jdbcTypeSetByUser == JDBCType.NVARCHAR) || (jdbcTypeSetByUser == JDBCType.NCHAR)
+                                        || (JDBCType.LONGNVARCHAR == jdbcTypeSetByUser))) {
+                            if (0 == valueLength) {
+                                // Workaround for the issue when inserting empty string and null into encrypted columns
+                                param.typeDefinition = "nchar(1)";
+                                valueLength++;
+                            } else {
+                                param.typeDefinition = "nchar(" + valueLength + ")";
+
+//                                if (DataTypes.SHORT_VARTYPE_MAX_BYTES <= valueLength) {
+//                                    param.typeDefinition = NVARCHAR_MAX;
+//                                }
+                            }
+
+//                            if (JDBCType.LONGNVARCHAR == jdbcTypeSetByUser) {
+//                                param.typeDefinition = NVARCHAR_MAX;
+//                            }
+                        } else { // used if setNull() is called with java.sql.Types.NCHAR
+                            if (0 == valueLength) {
+                                // Workaround for the issue when inserting empty string and null into encrypted columns
+                                param.typeDefinition = "nchar(1)";
+                                valueLength++;
+                            } else {
+                                param.typeDefinition = "nchar(" + valueLength + ")";
+
+//                                if (DataTypes.SHORT_VARTYPE_MAX_BYTES <= valueLength) {
+//                                    param.typeDefinition = NVARCHAR_MAX;
+//                                }
+                            }
+                        }
+                        break;
+                    } else
+                        if (0 == valueLength) {
+                            // Workaround for the issue when inserting empty string and null into encrypted columns
+                            param.typeDefinition = "char(1)";
+                            valueLength++;
+                        } else {
+                            param.typeDefinition = "char(" + valueLength + ")";
+
+//                            if (DataTypes.SHORT_VARTYPE_MAX_BYTES <= valueLength) {
+//                                param.typeDefinition = VARCHAR_MAX;
+//                            }
+                        }
+                    break;
                 case NVARCHAR:
                     // To avoid the server side cost of re-preparing, once a "long" type, always a "long" type...
                     if (NVARCHAR_MAX.equals(param.typeDefinition) || NTEXT.equals(param.typeDefinition))
