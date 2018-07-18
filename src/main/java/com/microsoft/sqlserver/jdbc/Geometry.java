@@ -5,8 +5,11 @@
 
 package com.microsoft.sqlserver.jdbc;
 
+import java.nio.BufferOverflowException;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.text.MessageFormat;
 
 
 public class Geometry extends SQLServerSpatialDatatype {
@@ -49,7 +52,14 @@ public class Geometry extends SQLServerSpatialDatatype {
         buffer = ByteBuffer.wrap(wkb);
         buffer.order(ByteOrder.LITTLE_ENDIAN);
 
-        parseWkb();
+        try {
+            parseWkb();
+        }
+        catch (NegativeArraySizeException | BufferUnderflowException | BufferOverflowException e) {
+            MessageFormat form = new MessageFormat(SQLServerException.getErrString("R_ParsingError"));
+            Object[] msgArgs = {JDBCType.VARBINARY};
+            throw new SQLServerException(this, form.format(msgArgs), null, 0, false);
+        }
 
         WKTsb = new StringBuffer();
         WKTsbNoZM = new StringBuffer();
