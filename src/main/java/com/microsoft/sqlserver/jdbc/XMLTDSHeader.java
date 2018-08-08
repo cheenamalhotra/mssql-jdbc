@@ -22,6 +22,7 @@ package com.microsoft.sqlserver.jdbc;
  * 
  */
 
+@SuppressWarnings("unused")
 final class XMLTDSHeader {
     private final String databaseName; // Database name where XML schema resides.
     private final String owningSchema; // Owner of XML schema (like dbo for example).

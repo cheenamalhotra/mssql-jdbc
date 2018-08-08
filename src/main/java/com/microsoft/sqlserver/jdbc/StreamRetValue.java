@@ -8,6 +8,7 @@ package com.microsoft.sqlserver.jdbc;
 /**
  * StreamRetValue represents a TDS return value.
  */
+@SuppressWarnings("unused")
 final class StreamRetValue extends StreamPacket {
     private String paramName;
 

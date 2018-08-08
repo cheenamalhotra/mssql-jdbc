@@ -581,6 +581,7 @@ final class TDSChannel {
     // For SSL-encrypted connections, this is the SSLSocket wrapped
     // around the TCP socket. For unencrypted connections, it is
     // just the TCP socket itself.
+    @SuppressWarnings("unused")
     private Socket channelSocket;
 
     // Implementation of a Socket proxy that can switch from TDS-wrapped I/O
@@ -1326,12 +1327,10 @@ final class TDSChannel {
      * connection property is set to true.
      */
     private final class PermissiveX509TrustManager implements X509TrustManager {
-        private final TDSChannel tdsChannel;
         private final Logger logger;
         private final String logContext;
 
         PermissiveX509TrustManager(TDSChannel tdsChannel) {
-            this.tdsChannel = tdsChannel;
             this.logger = tdsChannel.getLogger();
             this.logContext = tdsChannel.toString() + " (PermissiveX509TrustManager):";
         }
@@ -2422,7 +2421,7 @@ final class SocketFinder {
 
                 // register the channel for connect event
                 int ops = SelectionKey.OP_CONNECT;
-                SelectionKey key = sChannel.register(selector, ops);
+                sChannel.register(selector, ops);
 
                 sChannel.connect(new InetSocketAddress(inetAddr, portNumber));
 
@@ -3006,9 +3005,6 @@ final class TDSWriter {
     private int packetNum = 0;
 
     // Bytes for sending decimal/numeric data
-    private final static int BYTES4 = 4;
-    private final static int BYTES8 = 8;
-    private final static int BYTES12 = 12;
     private final static int BYTES16 = 16;
     public final static int BIGDECIMAL_MAX_LENGTH = 0x11;
 

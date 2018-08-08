@@ -101,8 +101,6 @@ public class SQLServerBulkCopy implements java.lang.AutoCloseable, java.io.Seria
      */
     private static final String loggerClassName = "com.microsoft.sqlserver.jdbc.SQLServerBulkCopy";
 
-    private static final int SQL_SERVER_2016_VERSION = 13;
-
     /**
      * Logger
      */
@@ -251,17 +249,13 @@ public class SQLServerBulkCopy implements java.lang.AutoCloseable, java.io.Seria
      * first packet from SQL Server.
      */
     private final class BulkTimeoutTimer implements Runnable {
-        private final int timeoutSeconds;
         private int secondsRemaining;
         private final TDSCommand command;
         private Thread timerThread;
         private volatile boolean canceled = false;
 
         BulkTimeoutTimer(int timeoutSeconds, TDSCommand command) {
-            assert timeoutSeconds > 0;
             assert null != command;
-
-            this.timeoutSeconds = timeoutSeconds;
             this.secondsRemaining = timeoutSeconds;
             this.command = command;
         }
@@ -1224,6 +1218,7 @@ public class SQLServerBulkCopy implements java.lang.AutoCloseable, java.io.Seria
         }
     }
 
+    @SuppressWarnings("unused")
     private String getDestTypeFromSrcType(int srcColIndx, int destColIndx,
             TDSWriter tdsWriter) throws SQLServerException {
         boolean isStreaming;
@@ -1258,6 +1253,7 @@ public class SQLServerBulkCopy implements java.lang.AutoCloseable, java.io.Seria
                 && copyOptions.isAllowEncryptedValueModifications()) {
             return "varbinary(" + bulkPrecision + ")";
         }
+        
         bulkPrecision = validateSourcePrecision(srcPrecision, bulkJdbcType, destPrecision);
 
         /*
@@ -1635,14 +1631,6 @@ public class SQLServerBulkCopy implements java.lang.AutoCloseable, java.io.Seria
         MessageFormat form = new MessageFormat(SQLServerException.getErrString("R_invalidArgument"));
         Object[] msgArgs = {argument};
         SQLServerException.makeFromDriverError(null, null, form.format(msgArgs), null, false);
-    }
-
-    /**
-     * Helper method to throw a SQLServerExeption with the errorConvertingValue message and given arguments.
-     */
-    private void throwInvalidJavaToJDBC(String javaClassName, int jdbcType) throws SQLServerException {
-        MessageFormat form = new MessageFormat(SQLServerException.getErrString("R_errorConvertingValue"));
-        throw new SQLServerException(form.format(new Object[] {javaClassName, jdbcType}), null, 0, null);
     }
 
     /**
@@ -3539,7 +3527,6 @@ public class SQLServerBulkCopy implements java.lang.AutoCloseable, java.io.Seria
 
             // Write row header for each row.
             tdsWriter.writeByte((byte) TDS.TDS_ROW);
-            int mappingColumnCount = columnMappings.size();
 
             // Copying from a resultset.
             if (null != sourceResultSet) {

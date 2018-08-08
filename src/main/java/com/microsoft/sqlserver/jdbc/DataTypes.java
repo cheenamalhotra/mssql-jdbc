@@ -1143,8 +1143,6 @@ final class DataTypes {
     final static int MAX_VARTYPE_MAX_CHARS = 0x3FFFFFFF;
     final static int MAX_VARTYPE_MAX_BYTES = 0x7FFFFFFF;
 
-    static private java.util.logging.Logger stmtDT;
-
     // Special length indicator for varchar(max), nvarchar(max) and varbinary(max).
     static final int MAXTYPE_LENGTH = 0xFFFF;
 

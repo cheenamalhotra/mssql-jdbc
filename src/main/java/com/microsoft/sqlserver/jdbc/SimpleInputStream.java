@@ -26,7 +26,6 @@ abstract class BaseInputStream extends InputStream {
     final boolean isStreaming;
 
     /** Generate the logging ID */
-    private String parentLoggingInfo = "";
     private static final AtomicInteger lastLoggingID = new AtomicInteger(0);
 
     private static int nextLoggingID() {
@@ -44,7 +43,6 @@ abstract class BaseInputStream extends InputStream {
     }
 
     final void setLoggingInfo(String info) {
-        parentLoggingInfo = info;
         if (logger.isLoggable(java.util.logging.Level.FINER))
             logger.finer(toString());
     }

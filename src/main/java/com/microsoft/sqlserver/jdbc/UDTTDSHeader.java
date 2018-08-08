@@ -20,6 +20,7 @@ package com.microsoft.sqlserver.jdbc;
  * 
  */
 
+@SuppressWarnings("unused")
 final class UDTTDSHeader {
     private final int maxLen; // MaxLen read from UDT type (not used when writing).
     private final String databaseName; // Database name where UDT type resides.

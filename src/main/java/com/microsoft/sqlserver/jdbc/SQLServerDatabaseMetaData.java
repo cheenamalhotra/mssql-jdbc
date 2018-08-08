@@ -25,6 +25,7 @@ import java.util.logging.Level;
  * The API javadoc for JDBC API methods that this class implements are not repeated here. Please see Sun's JDBC API
  * interfaces javadoc for those details.
  */
+@SuppressWarnings("unused")
 public final class SQLServerDatabaseMetaData implements java.sql.DatabaseMetaData {
     private SQLServerConnection connection;
 

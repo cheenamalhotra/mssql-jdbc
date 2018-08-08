@@ -9,7 +9,6 @@ import java.sql.ParameterMetaData;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -36,9 +35,6 @@ public final class SQLServerParameterMetaData implements ParameterMetaData {
 
     private final SQLServerStatement stmtParent;
     private SQLServerConnection con;
-
-    /* Used for callable statement meta data */
-    private Statement stmtCall;
     private SQLServerResultSet rsProcedureMeta;
 
     protected boolean procedureIsFound = false;

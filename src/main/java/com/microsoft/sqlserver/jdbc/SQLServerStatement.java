@@ -2637,7 +2637,7 @@ final class JDBCSyntaxTranslator {
         }
 
         // LIMIT escape is introduced in JDBC 4.1. Make sure versions lower than 4.1 do not have this feature.
-        if (((4 == DriverJDBCVersion.major) && (1 <= DriverJDBCVersion.minor)) || (4 < DriverJDBCVersion.major)) {
+        if (((1 <= DriverJDBCVersion.minor))) {
             // Search for LIMIT escape syntax. Do further processing if present.
             matcher = limitSyntaxGeneric.matcher(sql);
             if (matcher.find()) {
