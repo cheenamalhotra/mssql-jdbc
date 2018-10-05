@@ -7,6 +7,10 @@ jdk:
 services:
   - docker
 
+addons:
+  sonarcloud:
+    organization: "cheenamalhotra-github"
+
 env:
  global:	
   - mssql_jdbc_test_connection_properties='jdbc:sqlserver://localhost:1433;databaseName=master;username=sa;password=<YourStrong!Passw0rd>;'
@@ -40,5 +44,6 @@ script:
   - docker ps -a
   
 ##Test for JDBC Specification 43 & 42 and submit coverage report.
-  - mvn test -B -Pbuild43 jacoco:report && bash <(curl -s https://codecov.io/bash) -cF JDBC43
+## Run SonarQube anaylsis for JDBC43 profile only.
+  - mvn test -B -Pbuild43 jacoco:report && bash <(curl -s https://codecov.io/bash) -cF JDBC43 sonar:sonar
   - mvn test -B -Pbuild42 jacoco:report && bash <(curl -s https://codecov.io/bash) -cF JDBC42
