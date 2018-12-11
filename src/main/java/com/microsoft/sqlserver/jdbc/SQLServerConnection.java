@@ -60,6 +60,8 @@ import mssql.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 import mssql.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import mssql.googlecode.concurrentlinkedhashmap.EvictionListener;
 
+import com.microsoft.azure.msiAuthTokenProvider.*;
+
 
 /**
  * Provides an implementation java.sql.connection interface that assists creating a JDBC connection to SQL Server.
@@ -4193,86 +4195,21 @@ public class SQLServerConnection implements ISQLServerConnection, java.io.Serial
     }
 
     private SqlFedAuthToken getMSIAuthToken(String resource, String objectId) throws SQLServerException {
-        String urlString;
-        String msiEndpoint = System.getenv("MSI_ENDPOINT");
-        String msiSecret = System.getenv("MSI_SECRET");
-        boolean isAzureFunction = null != msiEndpoint && !msiEndpoint.isEmpty() && null != msiSecret
-                && !msiSecret.isEmpty();
+        SqlFedAuthToken token = null;
 
-        if (isAzureFunction) {
-            urlString = msiEndpoint + "?api-version=2017-09-01&resource=" + resource;
-        } else {
-            urlString = ActiveDirectoryAuthentication.AZURE_REST_MSI_URL + "&resource=" + resource;
+        MSICredentials credsProvider = MSICredentials.getMSICredentials();
+
+        if (objectId != null && !objectId.isEmpty()) {
+            credsProvider.updateClientId(objectId);
         }
 
-        if (null != objectId && !objectId.isEmpty()) {
-            urlString += "&object_id=" + objectId;
+        MSIToken msiToken = credsProvider.getToken(resource).toBlocking().value();
+
+        if (msiToken != null) {
+            token = new SqlFedAuthToken(msiToken.accessToken(), msiToken.expiresOn());
         }
 
-        HttpURLConnection connection = null;
-
-        try {
-            connection = (HttpURLConnection) new URL(urlString).openConnection();
-            connection.setRequestMethod("GET");
-
-            if (isAzureFunction) {
-                connection.setRequestProperty("Secret", msiSecret);
-                if (connectionlogger.isLoggable(Level.FINER)) {
-                    connectionlogger.finer(toString() + " Using Azure Function/App Service MSI auth: " + urlString);
-                }
-            } else {
-                connection.setRequestProperty("Metadata", "true");
-                if (connectionlogger.isLoggable(Level.FINER)) {
-                    connectionlogger.finer(toString() + " Using Azure MSI auth: " + urlString);
-                }
-            }
-
-            connection.connect();
-
-            try (InputStream stream = connection.getInputStream()) {
-
-                BufferedReader reader = new BufferedReader(new InputStreamReader(stream, UTF_8), 100);
-                String result = reader.readLine();
-
-                int startIndex_AT = result.indexOf(ActiveDirectoryAuthentication.ACCESS_TOKEN_IDENTIFIER)
-                        + ActiveDirectoryAuthentication.ACCESS_TOKEN_IDENTIFIER.length();
-
-                String accessToken = result.substring(startIndex_AT, result.indexOf("\"", startIndex_AT + 1));
-
-                Calendar cal = new Calendar.Builder().setInstant(new Date()).build();
-
-                if (isAzureFunction) {
-                    int startIndex_ATX = result
-                            .indexOf(ActiveDirectoryAuthentication.ACCESS_TOKEN_EXPIRES_ON_IDENTIFIER)
-                            + ActiveDirectoryAuthentication.ACCESS_TOKEN_EXPIRES_ON_IDENTIFIER.length();
-                    String accessTokenExpiry = result.substring(startIndex_ATX,
-                            result.indexOf("\"", startIndex_ATX + 1));
-                    if (connectionlogger.isLoggable(Level.FINER)) {
-                        connectionlogger.finer(toString() + " MSI auth token expires on: " + accessTokenExpiry);
-                    }
-
-                    DateFormat df = new SimpleDateFormat(
-                            ActiveDirectoryAuthentication.ACCESS_TOKEN_EXPIRES_ON_DATE_FORMAT);
-                    cal = new Calendar.Builder().setInstant(df.parse(accessTokenExpiry)).build();
-                } else {
-                    int startIndex_ATX = result
-                            .indexOf(ActiveDirectoryAuthentication.ACCESS_TOKEN_EXPIRES_IN_IDENTIFIER)
-                            + ActiveDirectoryAuthentication.ACCESS_TOKEN_EXPIRES_IN_IDENTIFIER.length();
-                    String accessTokenExpiry = result.substring(startIndex_ATX,
-                            result.indexOf("\"", startIndex_ATX + 1));
-                    cal.add(Calendar.SECOND, Integer.parseInt(accessTokenExpiry));
-                }
-
-                return new SqlFedAuthToken(accessToken, cal.getTime());
-            }
-        } catch (Exception e) {
-            SQLServerException.makeFromDriverError(this, null, e.getMessage(), null, true);
-            return null;
-        } finally {
-            if (connection != null) {
-                connection.disconnect();
-            }
-        }
+        return token;
     }
 
     /**
