@@ -4091,8 +4091,14 @@ public class SQLServerConnection implements ISQLServerConnection, java.io.Serial
                 // Break out of the retry loop in successful case.
                 break;
             } else if (authenticationString.trim().equalsIgnoreCase(SqlAuthentication.ActiveDirectoryMSI.toString())) {
-                fedAuthToken = getMSIAuthToken(fedAuthInfo.spn,
-                        activeConnectionProperties.getProperty(SQLServerDriverStringProperty.MSI_OBJECT_ID.toString()));
+                try {
+                    fedAuthToken = getMSIAuthToken(fedAuthInfo.spn,
+                            activeConnectionProperties.getProperty(SQLServerDriverStringProperty.MSI_OBJECT_ID.toString()));
+                } catch (AzureMSICredentialException azEx) {
+                    throw new SQLServerException("Unable to acquire MSI Token", azEx);
+                } catch (IOException ioEx) {
+                    throw new SQLServerException("Unable to acquire MSI Token", ioEx);
+                }
 
                 // Break out of the retry loop in successful case.
                 break;
@@ -4194,16 +4200,24 @@ public class SQLServerConnection implements ISQLServerConnection, java.io.Serial
         }
     }
 
-    private SqlFedAuthToken getMSIAuthToken(String resource, String objectId) throws SQLServerException {
+    private SqlFedAuthToken getMSIAuthToken(String resource, String objectId) throws AzureMSICredentialException, IOException {
+        return this.getMSIAuthToken(resource, objectId, null);
+    }
+
+    private SqlFedAuthToken getMSIAuthToken(String resource, String objectId, String clinetId) throws AzureMSICredentialException, IOException {
         SqlFedAuthToken token = null;
 
         MSICredentials credsProvider = MSICredentials.getMSICredentials();
 
         if (objectId != null && !objectId.isEmpty()) {
-            credsProvider.updateClientId(objectId);
+            credsProvider.updateObjectId(objectId);
         }
 
-        MSIToken msiToken = credsProvider.getToken(resource).toBlocking().value();
+        if (clinetId != null && !clinetId.isEmpty()) {
+            credsProvider.updateClientId(clinetId);
+        }
+
+        MSIToken msiToken = credsProvider.getToken(resource);
 
         if (msiToken != null) {
             token = new SqlFedAuthToken(msiToken.accessToken(), msiToken.expiresOn());
