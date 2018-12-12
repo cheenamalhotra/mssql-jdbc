@@ -68,6 +68,11 @@
 			<version>1.6.2</version>
 			<optional>true</optional>
 		</dependency>
+		<dependency>
+          <groupId>com.microsoft.azure.msi_auth_token_provider</groupId>
+          <artifactId>azure-authentication-msi-token-provider</artifactId>
+          <version>1.0.0-beta</version>
+      </dependency>
 
 		<!-- dependencies for running tests -->
 		<dependency>
@@ -342,6 +347,48 @@
 					</execution>
 				</executions>
 			</plugin>
+			<plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-install-plugin</artifactId>
+              <version>2.4</version>
+              <executions>
+                 <execution>
+                    <phase>initialize</phase>
+                    <goals>
+                        <goal>install-file</goal>
+                    </goals>
+                   <configuration>
+                       <groupId>com.microsoft.azure.msi_auth_token_provider</groupId>
+                       <artifactId>azure-authentication-msi-token-provider</artifactId>
+                       <version>1.0.0-beta</version>
+                       <packaging>jar</packaging>
+                       <file>${basedir}/lib/azure-authentication-msi-token-provider.jar</file>
+                   </configuration>
+               </execution>
+             </executions>
+            </plugin>
+			<plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+				<version>3.0.2</version>
+                <executions>
+                    <execution>
+                        <id>copy-dependencies</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${stagingDirectory}/lib</outputDirectory>
+                            <overWriteReleases>false</overWriteReleases>
+                            <overWriteSnapshots>false</overWriteSnapshots>
+                            <overWriteIfNewer>true</overWriteIfNewer>
+                            <includeScope>runtime</includeScope>
+                            <excludeArtifactIds>azure-functions-java-library</excludeArtifactIds>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
 			<!-- Create OSGI Headers -->
 			<plugin>
 				<groupId>org.apache.felix</groupId>
