@@ -741,6 +741,12 @@ public final class SQLServerDriver implements java.sql.Driver {
         return result;
     }
 
+    static synchronized void addConnRef(UUID clientConnectionId) {
+        if (null != connRef && !connRef.contains(clientConnectionId)) {
+            connRef.add(clientConnectionId);
+        }
+    }
+
     static synchronized void removeConnRef(UUID clientConnectionId) {
         if (null != connRef && connRef.contains(clientConnectionId)) {
             connRef.remove(clientConnectionId);
@@ -830,11 +836,5 @@ public final class SQLServerDriver implements java.sql.Driver {
         loggerExternal.entering(getClassNameLogging(), "jdbcCompliant");
         loggerExternal.exiting(getClassNameLogging(), "jdbcCompliant", Boolean.TRUE);
         return true;
-    }
-
-    static void addConnRef(UUID clientConnectionId) {
-        if (null != connRef && !connRef.contains(clientConnectionId)) {
-            connRef.add(clientConnectionId);
-        }
     }
 }
