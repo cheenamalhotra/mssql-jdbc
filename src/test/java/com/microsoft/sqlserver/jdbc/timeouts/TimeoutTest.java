@@ -5,8 +5,6 @@
 
 package com.microsoft.sqlserver.jdbc.timeouts;
 
-import static org.junit.Assert.assertEquals;
-
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -14,32 +12,15 @@ import java.sql.SQLException;
 import java.sql.SQLTimeoutException;
 
 import org.junit.Assert;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.platform.runner.JUnitPlatform;
 import org.junit.runner.RunWith;
 
-import com.microsoft.sqlserver.jdbc.SQLServerException;
-import com.microsoft.sqlserver.jdbc.SQLServerStatement;
 import com.microsoft.sqlserver.testframework.AbstractTest;
-import com.microsoft.sqlserver.testframework.PrepUtil;
 
 
 @RunWith(JUnitPlatform.class)
 public class TimeoutTest extends AbstractTest {
-    @AfterAll
-    public static void resetStaticConnection() throws ClassNotFoundException, SQLException {
-        connection = PrepUtil.getConnection(connectionString, info);
-    }
-
-    @BeforeAll
-    public static void closeStaticConnection() throws SQLServerException {
-        if (null != connection) {
-            connection.close();
-        }
-    }
-
     @Test
     public void testBasicQueryTimeout() {
         boolean exceptionThrown = false;
@@ -78,70 +59,5 @@ public class TimeoutTest extends AbstractTest {
             preparedStatement.setQueryTimeout(timeout);
             return preparedStatement.execute();
         }
-    }
-
-    @Test
-    public void testTimeoutPollerDaemon() throws SQLException, InterruptedException {
-        try (Connection connection = DriverManager.getConnection(connectionString)) {
-            try (SQLServerStatement statement = (SQLServerStatement) connection.createStatement()) {
-                statement.execute("SELECT 1");
-                // Daemon thread is not yet activated
-                assertEquals(Thread.activeCount(), 2);
-            }
-
-            for (int i = 0; i < 100; i++) {
-                try (SQLServerStatement statement = (SQLServerStatement) connection.createStatement()) {
-                    statement.setQueryTimeout(10);
-                    statement.execute("SELECT 1");
-                    // Daemon thread is activated
-                    assertEquals(Thread.activeCount(), 3);
-                }
-            }
-
-            try (Connection connection1 = DriverManager.getConnection(connectionString)) {
-                for (int i = 0; i < 100; i++) {
-                    try (SQLServerStatement statement = (SQLServerStatement) connection1.createStatement()) {
-                        statement.execute("SELECT 1");
-                        // No timeout used, still daemon thread is active
-                        assertEquals(Thread.activeCount(), 3);
-                    }
-                }
-            }
-
-            // Closed 1 connection - still daemon thread is active in background
-            assertEquals(Thread.activeCount(), 3);
-            for (int i = 0; i < 100; i++) {
-                try (SQLServerStatement statement = (SQLServerStatement) connection.createStatement()) {
-                    statement.setQueryTimeout(10);
-                    statement.execute("SELECT 1");
-                    assertEquals(Thread.activeCount(), 3);
-                }
-            }
-        }
-        Thread.sleep(1000); // wait some time
-        // Daemon thread killed
-        assertEquals(Thread.activeCount(), 2);
-
-        // Connection created again
-        try (Connection connection = DriverManager.getConnection(connectionString)) {
-            try (SQLServerStatement statement = (SQLServerStatement) connection.createStatement()) {
-                statement.execute("SELECT 1");
-                // Daemon thread is not yet activated
-                assertEquals(Thread.activeCount(), 2);
-            }
-
-            for (int i = 0; i < 100; i++) {
-                try (SQLServerStatement statement = (SQLServerStatement) connection.createStatement()) {
-                    statement.setQueryTimeout(10);
-                    statement.execute("SELECT 1");
-                    // Daemon thread is activated
-                    assertEquals(Thread.activeCount(), 3);
-                }
-            }
-        }
-
-        Thread.sleep(1000); // wait some time
-        // Daemon thread killed
-        assertEquals(Thread.activeCount(), 2);
     }
 }
