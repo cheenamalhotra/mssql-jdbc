@@ -79,7 +79,7 @@ final class TimeoutPoller implements Runnable {
         } catch (InterruptedException e) {
             // Do not throw exception here
             TimeoutPoller.pollerThread = null;
-            timeoutPoller = null;
+            TimeoutPoller.timeoutPoller = null;
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Error processing timeout commands", e);
         }
