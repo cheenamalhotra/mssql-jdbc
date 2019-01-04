@@ -1962,6 +1962,8 @@ public class SQLServerConnection implements ISQLServerConnection, java.io.Serial
             }
         }
 
+        SQLServerDriver.addConnRef(this.clientConnectionId);
+
         return this;
 
     }
@@ -3193,7 +3195,7 @@ public class SQLServerConnection implements ISQLServerConnection, java.io.Serial
 
         ActivityCorrelator.cleanupActivityId();
 
-        SQLServerDriver.removeConnRef(this.hashCode());
+        SQLServerDriver.removeConnRef(this.clientConnectionId);
 
         loggerExternal.exiting(getClassNameLogging(), "close");
     }

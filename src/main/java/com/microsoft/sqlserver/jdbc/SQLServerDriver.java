@@ -14,6 +14,7 @@ import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Properties;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -375,7 +376,7 @@ public final class SQLServerDriver implements java.sql.Driver {
     static final String PRODUCT_NAME = "Microsoft JDBC Driver " + SQLJdbcVersion.major + "." + SQLJdbcVersion.minor
             + " for SQL Server";
     static final String DEFAULT_APP_NAME = "Microsoft JDBC Driver for SQL Server";
-    static final HashSet<Integer> connRef = new HashSet<>();
+    static final HashSet<UUID> connRef = new HashSet<>();
     private static final String[] TRUE_FALSE = {"true", "false"};
     private static final SQLServerDriverPropertyInfo[] DRIVER_PROPERTIES = {
             // default required available choices
@@ -736,14 +737,13 @@ public final class SQLServerDriver implements java.sql.Driver {
             }
             result.connect(connectProperties, null);
         }
-        connRef.add(result.hashCode());
         loggerExternal.exiting(getClassNameLogging(), "connect", result);
         return result;
     }
 
-    static synchronized void removeConnRef(int connHashCode) {
-        if (null != connRef && connRef.contains(connHashCode)) {
-            connRef.remove(connHashCode);
+    static synchronized void removeConnRef(UUID clientConnectionId) {
+        if (null != connRef && connRef.contains(clientConnectionId)) {
+            connRef.remove(clientConnectionId);
             if (0 == connRef.size()) {
                 TimeoutPoller.getTimeoutPoller().kill();
             }
@@ -830,5 +830,11 @@ public final class SQLServerDriver implements java.sql.Driver {
         loggerExternal.entering(getClassNameLogging(), "jdbcCompliant");
         loggerExternal.exiting(getClassNameLogging(), "jdbcCompliant", Boolean.TRUE);
         return true;
+    }
+
+    static void addConnRef(UUID clientConnectionId) {
+        if (null != connRef && !connRef.contains(clientConnectionId)) {
+            connRef.add(clientConnectionId);
+        }
     }
 }
