@@ -744,7 +744,7 @@ public final class SQLServerDriver implements java.sql.Driver {
     static synchronized void removeConnRef(int connHashCode) {
         if (null != connRef && connRef.contains(connHashCode)) {
             connRef.remove(connHashCode);
-            if(0==connRef.size()) {
+            if (0 == connRef.size()) {
                 TimeoutPoller.getTimeoutPoller().kill();
             }
         }

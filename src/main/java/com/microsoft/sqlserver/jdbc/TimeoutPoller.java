@@ -20,7 +20,7 @@ final class TimeoutPoller implements Runnable {
     private List<TimeoutCommand<TDSCommand>> timeoutCommands = new ArrayList<>();
     final static Logger logger = Logger.getLogger("com.microsoft.sqlserver.jdbc.TimeoutPoller");
     private static volatile TimeoutPoller timeoutPoller = null;
-    private static Thread pollerThread;
+    private static volatile Thread pollerThread;
 
     static TimeoutPoller getTimeoutPoller() {
         if (timeoutPoller == null) {
@@ -79,6 +79,7 @@ final class TimeoutPoller implements Runnable {
         } catch (InterruptedException e) {
             // Do not throw exception here
             TimeoutPoller.pollerThread = null;
+            timeoutPoller = null;
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Error processing timeout commands", e);
         }
