@@ -11,6 +11,7 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.text.MessageFormat;
 import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -374,7 +375,7 @@ public final class SQLServerDriver implements java.sql.Driver {
     static final String PRODUCT_NAME = "Microsoft JDBC Driver " + SQLJdbcVersion.major + "." + SQLJdbcVersion.minor
             + " for SQL Server";
     static final String DEFAULT_APP_NAME = "Microsoft JDBC Driver for SQL Server";
-
+    static final HashSet<Integer> connRef = new HashSet<>();
     private static final String[] TRUE_FALSE = {"true", "false"};
     private static final SQLServerDriverPropertyInfo[] DRIVER_PROPERTIES = {
             // default required available choices
@@ -556,6 +557,7 @@ public final class SQLServerDriver implements java.sql.Driver {
     private final static java.util.logging.Logger drLogger = java.util.logging.Logger
             .getLogger("com.microsoft.sqlserver.jdbc.internals.SQLServerDriver");
     private static java.sql.Driver mssqlDriver = null;
+
     // Register with the DriverManager
     static {
         try {
@@ -734,8 +736,18 @@ public final class SQLServerDriver implements java.sql.Driver {
             }
             result.connect(connectProperties, null);
         }
+        connRef.add(result.hashCode());
         loggerExternal.exiting(getClassNameLogging(), "connect", result);
         return result;
+    }
+
+    static synchronized void removeConnRef(int connHashCode) {
+        if (null != connRef && connRef.contains(connHashCode)) {
+            connRef.remove(connHashCode);
+            if(0==connRef.size()) {
+                TimeoutPoller.getTimeoutPoller().kill();
+            }
+        }
     }
 
     private Properties parseAndMergeProperties(String Url, Properties suppliedProperties) throws SQLServerException {

@@ -3193,6 +3193,8 @@ public class SQLServerConnection implements ISQLServerConnection, java.io.Serial
 
         ActivityCorrelator.cleanupActivityId();
 
+        SQLServerDriver.removeConnRef(this.hashCode());
+
         loggerExternal.exiting(getClassNameLogging(), "close");
     }
 

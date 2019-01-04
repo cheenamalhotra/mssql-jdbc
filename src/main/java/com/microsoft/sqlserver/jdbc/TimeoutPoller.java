@@ -20,6 +20,7 @@ final class TimeoutPoller implements Runnable {
     private List<TimeoutCommand<TDSCommand>> timeoutCommands = new ArrayList<>();
     final static Logger logger = Logger.getLogger("com.microsoft.sqlserver.jdbc.TimeoutPoller");
     private static volatile TimeoutPoller timeoutPoller = null;
+    private static Thread pollerThread;
 
     static TimeoutPoller getTimeoutPoller() {
         if (timeoutPoller == null) {
@@ -28,7 +29,7 @@ final class TimeoutPoller implements Runnable {
                     // initialize the timeout poller thread once
                     timeoutPoller = new TimeoutPoller();
                     // start the timeout polling thread
-                    Thread pollerThread = new Thread(timeoutPoller, "mssql-jdbc-TimeoutPoller");
+                    pollerThread = new Thread(timeoutPoller, "mssql-jdbc-TimeoutPoller");
                     pollerThread.setDaemon(true);
                     pollerThread.start();
                 }
@@ -75,8 +76,17 @@ final class TimeoutPoller implements Runnable {
                 }
                 Thread.sleep(1000);
             }
+        } catch (InterruptedException e) {
+            // Do not throw exception here
+            TimeoutPoller.pollerThread = null;
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Error processing timeout commands", e);
+        }
+    }
+
+    public synchronized void kill() {
+        if (null != pollerThread && pollerThread.isAlive()) {
+            pollerThread.interrupt();
         }
     }
 }
