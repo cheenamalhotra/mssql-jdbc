@@ -16,13 +16,14 @@ import java.sql.SQLTimeoutException;
 import java.util.Set;
 
 import org.junit.Assert;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.platform.runner.JUnitPlatform;
 import org.junit.runner.RunWith;
 
 import com.microsoft.sqlserver.jdbc.SQLServerConnectionPoolDataSource;
 import com.microsoft.sqlserver.jdbc.SQLServerDataSource;
-import com.microsoft.sqlserver.jdbc.SQLServerDriver;
+import com.microsoft.sqlserver.jdbc.SQLServerException;
 import com.microsoft.sqlserver.jdbc.SQLServerStatement;
 import com.microsoft.sqlserver.testframework.AbstractTest;
 
@@ -30,7 +31,7 @@ import com.microsoft.sqlserver.testframework.AbstractTest;
 @RunWith(JUnitPlatform.class)
 public class TimeoutTest extends AbstractTest {
     private String SQL_SERVER_TIMEOUT_THREAD = "com.microsoft.sqlserver.jdbc.TimeoutPoller";
-    
+
     @Test
     public void testBasicQueryTimeout() {
         boolean exceptionThrown = false;
@@ -61,14 +62,23 @@ public class TimeoutTest extends AbstractTest {
         }
         Assert.assertTrue("A SQLTimeoutException was expected", exceptionThrown);
     }
-    
+
     @Test
     /**
      * This test will fail if any other JUnit test leaks any connection
+     * 
      * @throws SQLException
      * @throws InterruptedException
      */
     public void testTimeoutDaemonThread() throws SQLException, InterruptedException {
+        if (null != connection) {
+            connection.close();
+        }
+
+        Thread.sleep(500); // wait some time
+        // Daemon thread killed
+        assertFalse(isTimeoutThreadRunning());
+
         try (Connection connection = DriverManager.getConnection(connectionString)) {
             for (int i = 0; i < 100; i++) {
                 try (SQLServerStatement statement = (SQLServerStatement) connection.createStatement()) {
