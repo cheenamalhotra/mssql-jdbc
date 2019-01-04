@@ -85,7 +85,7 @@ final class TimeoutPoller implements Runnable {
         }
     }
 
-    public synchronized void kill() {
+    protected synchronized static void kill() {
         if (null != pollerThread && pollerThread.isAlive()) {
             pollerThread.interrupt();
         }

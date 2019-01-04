@@ -751,7 +751,7 @@ public final class SQLServerDriver implements java.sql.Driver {
         if (null != connRef && connRef.contains(clientConnectionId)) {
             connRef.remove(clientConnectionId);
             if (0 == connRef.size()) {
-                TimeoutPoller.getTimeoutPoller().kill();
+                TimeoutPoller.kill();
             }
         }
     }
