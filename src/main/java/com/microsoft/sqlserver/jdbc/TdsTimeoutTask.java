@@ -19,7 +19,7 @@ class TdsTimeoutTask implements Runnable {
     private final TDSCommand command;
     private final SQLServerConnection sqlServerConnection;
 
-    public TdsTimeoutTask(TDSCommand command, SQLServerConnection sqlServerConnection) {
+    TdsTimeoutTask(TDSCommand command, SQLServerConnection sqlServerConnection) {
         this.connectionId = sqlServerConnection == null ? null : sqlServerConnection.getClientConIdInternal();
         this.command = command;
         this.sqlServerConnection = sqlServerConnection;
@@ -35,7 +35,7 @@ class TdsTimeoutTask implements Runnable {
         thread.start();
     }
 
-    protected void interrupt() {
+    void interrupt() {
         try {
             // If TCP Connection to server is silently dropped, exceeding the query timeout
             // on the same connection does not throw SQLTimeoutException
@@ -53,10 +53,9 @@ class TdsTimeoutTask implements Runnable {
             }
         } catch (SQLServerException e) {
             // Unfortunately, there's nothing we can do if we fail to time out the request. There
-            // is no way to report back what happened.
+            // is no way to report back what happened. Log a warning for users to debug.
             assert null != command;
             command.log(Level.WARNING, "Command could not be timed out. Reason: " + e.getMessage());
-            System.err.println(e.getMessage());
         }
     }
 }
