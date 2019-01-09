@@ -629,7 +629,8 @@ public class SQLServerBulkCopy implements java.lang.AutoCloseable, java.io.Seria
                 int timeoutSeconds = copyOptions.getBulkCopyTimeout();
                 if (timeoutSeconds > 0) {
                     connection.checkClosed();
-                    timeout = connection.getSharedTimer().schedule(new TdsBulkCommandTimeoutTask(this, connection), timeoutSeconds);
+                    timeout = connection.getSharedTimer().schedule(new TdsTimeoutTask(this, connection),
+                            timeoutSeconds);
                 }
 
                 // doInsertBulk inserts the rows in one batch. It returns true if there are more rows in

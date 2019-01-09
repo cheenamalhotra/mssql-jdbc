@@ -12,9 +12,9 @@ import java.util.concurrent.atomic.AtomicLong;
 
 
 class SharedTimer {
+    private static final String CORE_THREAD_PREFIX = "mssql-jdbc-shared-timer-core-";
     private static final AtomicLong CORE_THREAD_COUNTER = new AtomicLong();
     private static SharedTimer INSTANCE;
-
     private final long id = CORE_THREAD_COUNTER.getAndIncrement();
     private int refCount = 0;
     private ScheduledThreadPoolExecutor executor;
@@ -23,7 +23,7 @@ class SharedTimer {
         executor = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
             @Override
             public Thread newThread(Runnable task) {
-                return new Thread(task, "mssql-jdbc-shared-timer-core-" + id);
+                return new Thread(task, CORE_THREAD_PREFIX + id);
             }
         });
         executor.setRemoveOnCancelPolicy(true);
@@ -51,11 +51,11 @@ class SharedTimer {
         return INSTANCE;
     }
 
-    public ScheduledFuture<?> schedule(SqlServerTimerTask task, long delaySeconds) {
+    public ScheduledFuture<?> schedule(TdsTimeoutTask task, long delaySeconds) {
         return schedule(task, delaySeconds, TimeUnit.SECONDS);
     }
 
-    public ScheduledFuture<?> schedule(SqlServerTimerTask task, long delay, TimeUnit unit) {
+    public ScheduledFuture<?> schedule(TdsTimeoutTask task, long delay, TimeUnit unit) {
         if (executor == null) {
             throw new IllegalStateException("Cannot schedule tasks after shutdown");
         }
