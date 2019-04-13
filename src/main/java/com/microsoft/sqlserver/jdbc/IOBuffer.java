@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
+import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -52,15 +53,11 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.SimpleTimeZone;
 import java.util.TimeZone;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -108,6 +105,7 @@ final class TDS {
     static final int TDS_FEDAUTH_LIBRARY_RESERVED = 0x7F;
     static final byte ADALWORKFLOW_ACTIVEDIRECTORYPASSWORD = 0x01;
     static final byte ADALWORKFLOW_ACTIVEDIRECTORYINTEGRATED = 0x02;
+    static final byte ADALWORKFLOW_ACTIVEDIRECTORYMSI = 0x03;
     static final byte FEDAUTH_INFO_ID_STSURL = 0x01; // FedAuthInfoData is token endpoint URL from which to acquire fed
                                                      // auth token
     static final byte FEDAUTH_INFO_ID_SPN = 0x02; // FedAuthInfoData is the SPN to use for acquiring fed auth token
@@ -546,7 +544,12 @@ final class UTC {
 }
 
 
-final class TDSChannel {
+final class TDSChannel implements Serializable {
+    /**
+     * Always update serialVersionUID when prompted.
+     */
+    private static final long serialVersionUID = -866497813437384090L;
+
     private static final Logger logger = Logger.getLogger("com.microsoft.sqlserver.jdbc.internals.TDS.Channel");
 
     final Logger getLogger() {
@@ -577,10 +580,11 @@ final class TDSChannel {
     // Socket for SSL-encrypted communications with SQL Server
     private SSLSocket sslSocket;
 
-    // Socket providing the communications interface to the driver.
-    // For SSL-encrypted connections, this is the SSLSocket wrapped
-    // around the TCP socket. For unencrypted connections, it is
-    // just the TCP socket itself.
+    /*
+     * Socket providing the communications interface to the driver. For SSL-encrypted connections, this is the SSLSocket
+     * wrapped around the TCP socket. For unencrypted connections, it is just the TCP socket itself.
+     */
+    @SuppressWarnings("unused")
     private Socket channelSocket;
 
     // Implementation of a Socket proxy that can switch from TDS-wrapped I/O
@@ -1367,7 +1371,7 @@ final class TDSChannel {
             this.logContext = tdsChannel.toString() + " (HostNameOverrideX509TrustManager):";
             defaultTrustManager = tm;
             // canonical name is in lower case so convert this to lowercase too.
-            this.hostName = hostName.toLowerCase(Locale.ENGLISH);;
+            this.hostName = hostName.toLowerCase(Locale.ENGLISH);
         }
 
         // Parse name in RFC 2253 format
@@ -1404,27 +1408,66 @@ final class TDSChannel {
             return commonName;
         }
 
-        private boolean validateServerName(String nameInCert) throws CertificateException {
+        private boolean validateServerName(String nameInCert) {
             // Failed to get the common name from DN or empty CN
             if (null == nameInCert) {
-                if (logger.isLoggable(Level.FINER))
+                if (logger.isLoggable(Level.FINER)) {
                     logger.finer(logContext + " Failed to parse the name from the certificate or name is empty.");
+                }
                 return false;
             }
-
+            // We do not allow wildcards in IDNs (xn--).
+            if (!nameInCert.startsWith("xn--") && nameInCert.contains("*")) {
+                int hostIndex = 0, certIndex = 0, match = 0, startIndex = -1, periodCount = 0;
+                while (hostIndex < hostName.length()) {
+                    if ('.' == hostName.charAt(hostIndex)) {
+                        periodCount++;
+                    }
+                    if (certIndex < nameInCert.length() && hostName.charAt(hostIndex) == nameInCert.charAt(certIndex)) {
+                        hostIndex++;
+                        certIndex++;
+                    } else if (certIndex < nameInCert.length() && '*' == nameInCert.charAt(certIndex)) {
+                        startIndex = certIndex;
+                        match = hostIndex;
+                        certIndex++;
+                    } else if (startIndex != -1 && 0 == periodCount) {
+                        certIndex = startIndex + 1;
+                        match++;
+                        hostIndex = match;
+                    } else {
+                        logFailMessage(nameInCert);
+                        return false;
+                    }
+                }
+                if (nameInCert.length() == certIndex && periodCount > 1) {
+                    logSuccessMessage(nameInCert);
+                    return true;
+                } else {
+                    logFailMessage(nameInCert);
+                    return false;
+                }
+            }
             // Verify that the name in certificate matches exactly with the host name
             if (!nameInCert.equals(hostName)) {
-                if (logger.isLoggable(Level.FINER))
-                    logger.finer(logContext + " The name in certificate " + nameInCert
-                            + " does not match with the server name " + hostName + ".");
+                logFailMessage(nameInCert);
                 return false;
             }
+            logSuccessMessage(nameInCert);
+            return true;
+        }
 
-            if (logger.isLoggable(Level.FINER))
+        private void logFailMessage(String nameInCert) {
+            if (logger.isLoggable(Level.FINER)) {
+                logger.finer(logContext + " The name in certificate " + nameInCert
+                        + " does not match with the server name " + hostName + ".");
+            }
+        }
+
+        private void logSuccessMessage(String nameInCert) {
+            if (logger.isLoggable(Level.FINER)) {
                 logger.finer(logContext + " The name in certificate:" + nameInCert + " validated against server name "
                         + hostName + ".");
-
-            return true;
+            }
         }
 
         public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {
@@ -1542,7 +1585,7 @@ final class TDSChannel {
         SSL_HANDHSAKE_NOT_STARTED,
         SSL_HANDHSAKE_STARTED,
         SSL_HANDHSAKE_COMPLETE
-    };
+    }
 
     /**
      * Enables SSL Handshake.
@@ -1799,31 +1842,40 @@ final class TDSChannel {
                                 + tmfDefaultAlgorithm + "\n") : "")
                         + ((null != ksProvider) ? ("KeyStore provider info: " + ksProvider.getInfo() + "\n") : "")
                         + "java.ext.dirs: " + System.getProperty("java.ext.dirs"));
+            // Retrieve the localized error message if possible.
+            String localizedMessage = e.getLocalizedMessage();
+            String errMsg = (localizedMessage != null) ? localizedMessage : e.getMessage();
+            /*
+             * Retrieve the error message of the cause too because actual error message can be wrapped into a different
+             * message when re-thrown from underlying InputStream.
+             */
+            String causeErrMsg = null;
+            Throwable cause = e.getCause();
+            if (cause != null) {
+                String causeLocalizedMessage = cause.getLocalizedMessage();
+                causeErrMsg = (causeLocalizedMessage != null) ? causeLocalizedMessage : cause.getMessage();
+            }
 
             MessageFormat form = new MessageFormat(SQLServerException.getErrString("R_sslFailed"));
-            Object[] msgArgs = {e.getMessage()};
+            Object[] msgArgs = {errMsg};
 
-            // It is important to get the localized message here, otherwise error messages won't match for different
-            // locales.
-            String errMsg = e.getLocalizedMessage();
-            // If the message is null replace it with the non-localized message or a dummy string. This can happen if a
-            // custom
-            // TrustManager implementation is specified that does not provide localized messages.
-            if (errMsg == null) {
-                errMsg = e.getMessage();
-            }
-            if (errMsg == null) {
-                errMsg = "";
-            }
-            // The error message may have a connection id appended to it. Extract the message only for comparison.
-            // This client connection id is appended in method checkAndAppendClientConnId().
-            if (errMsg.contains(SQLServerException.LOG_CLIENT_CONNECTION_ID_PREFIX)) {
+            /*
+             * The error message may have a connection id appended to it. Extract the message only for comparison. This
+             * client connection id is appended in method checkAndAppendClientConnId().
+             */
+            if (errMsg != null && errMsg.contains(SQLServerException.LOG_CLIENT_CONNECTION_ID_PREFIX)) {
                 errMsg = errMsg.substring(0, errMsg.indexOf(SQLServerException.LOG_CLIENT_CONNECTION_ID_PREFIX));
+            }
+
+            if (causeErrMsg != null && causeErrMsg.contains(SQLServerException.LOG_CLIENT_CONNECTION_ID_PREFIX)) {
+                causeErrMsg = causeErrMsg.substring(0,
+                        causeErrMsg.indexOf(SQLServerException.LOG_CLIENT_CONNECTION_ID_PREFIX));
             }
 
             // Isolate the TLS1.2 intermittent connection error.
             if (e instanceof IOException && (SSLHandhsakeState.SSL_HANDHSAKE_STARTED == handshakeState)
-                    && (errMsg.equals(SQLServerException.getErrString("R_truncatedServerResponse")))) {
+                    && (SQLServerException.getErrString("R_truncatedServerResponse").equals(errMsg)
+                            || SQLServerException.getErrString("R_truncatedServerResponse").equals(causeErrMsg))) {
                 con.terminate(SQLServerException.DRIVER_ERROR_INTERMITTENT_TLS_FAILED, form.format(msgArgs), e);
             } else {
                 con.terminate(SQLServerException.DRIVER_ERROR_SSL_FAILED, form.format(msgArgs), e);
@@ -2108,8 +2160,8 @@ final class TDSChannel {
         //
         // Note: the log formatter itself timestamps what we write so we don't have
         // to do it again here.
-        logMsg.append(tcpSocket.getLocalAddress().toString() + ":" + tcpSocket.getLocalPort() + " SPID:" + spid + " "
-                + messageDetail + "\r\n");
+        logMsg.append(tcpSocket.getLocalAddress().toString()).append(":").append(tcpSocket.getLocalPort())
+                .append(" SPID:").append(spid).append(" ").append(messageDetail).append("\r\n");
 
         // Fill in the body of the log message, line by line, 16 bytes per line.
         int nBytesLogged = 0;
@@ -2295,7 +2347,7 @@ final class SocketFinder {
                 loggingString.append(". They are: ");
 
                 for (InetAddress inetAddr : inetAddrs) {
-                    loggingString.append(inetAddr.toString() + ";");
+                    loggingString.append(inetAddr.toString()).append(";");
                 }
 
                 logger.finer(loggingString.toString());
@@ -2421,6 +2473,7 @@ final class SocketFinder {
                 sChannel.configureBlocking(false);
 
                 // register the channel for connect event
+                @SuppressWarnings("unused")
                 int ops = SelectionKey.OP_CONNECT;
                 SelectionKey key = sChannel.register(selector, ops);
 
@@ -2473,7 +2526,7 @@ final class SocketFinder {
 
                             // ch.finishConnect should either return true or throw an exception
                             // as we have subscribed for OP_CONNECT.
-                            assert connected == true : "finishConnect on channel:" + ch + " cannot be false";
+                            assert connected : "finishConnect on channel:" + ch + " cannot be false";
 
                             selectedChannel = ch;
 
@@ -2484,7 +2537,7 @@ final class SocketFinder {
                         } catch (IOException ex) {
                             if (logger.isLoggable(Level.FINER))
                                 logger.finer(this.toString() + " the exception: " + ex.getClass() + " with message: "
-                                        + ex.getMessage() + " occured while processing the channel: " + ch);
+                                        + ex.getMessage() + " occurred while processing the channel: " + ch);
                             updateSelectedException(ex, this.toString());
                             // close the channel pro-actively so that we do not
                             // rely to network resources
@@ -2791,7 +2844,7 @@ final class SocketFinder {
                             logger.finer("The following child thread acquired parentThreadLock:" + threadId);
                         }
 
-                        parentThreadLock.notify();
+                        parentThreadLock.notifyAll();
                     }
 
                     if (logger.isLoggable(Level.FINER)) {
@@ -2913,7 +2966,7 @@ final class SocketConnector implements Runnable {
             } catch (IOException ex) {
                 if (logger.isLoggable(Level.FINER)) {
                     logger.finer(this.toString() + " exception:" + ex.getClass() + " with message:" + ex.getMessage()
-                            + " occured while connecting to InetSocketAddress:" + inetSocketAddress);
+                            + " occurred while connecting to InetSocketAddress:" + inetSocketAddress);
                 }
                 exception = ex;
             }
@@ -2970,6 +3023,10 @@ final class TDSWriter {
 
     void setDataLoggable(boolean value) {
         dataIsLoggable = value;
+    }
+
+    SharedTimer getSharedTimer() {
+        return con.getSharedTimer();
     }
 
     private TDSCommand command = null;
@@ -3058,8 +3115,8 @@ final class TDSWriter {
             boolean includeTraceHeader = false;
             int totalHeaderLength = TDS.MESSAGE_HEADER_LENGTH;
             if (TDS.PKT_QUERY == tdsMessageType || TDS.PKT_RPC == tdsMessageType) {
-                if (con.isDenaliOrLater() && !ActivityCorrelator.getCurrent().IsSentToServer()
-                        && Util.IsActivityTraceOn()) {
+                if (con.isDenaliOrLater() && Util.isActivityTraceOn()
+                        && !ActivityCorrelator.getCurrent().isSentToServer()) {
                     includeTraceHeader = true;
                     totalHeaderLength += TDS.TRACE_HEADER_LENGTH;
                 }
@@ -3132,7 +3189,7 @@ final class TDSWriter {
     // the client MUST send the next packet with both ignore bit (0x02) and EOM bit (0x01)
     // set in the status to cancel the request.
     final boolean ignoreMessage() throws SQLServerException {
-        if (packetNum > 0) {
+        if (packetNum > 0 || TDS.PKT_BULK == this.tdsMessageType) {
             assert !isEOMSent;
 
             if (logger.isLoggable(Level.FINER))
@@ -3281,7 +3338,7 @@ final class TDSWriter {
          */
 
         /*
-         * setScale of all BigDecimal value based on metadata as scale is not sent seperately for individual value. Use
+         * setScale of all BigDecimal value based on metadata as scale is not sent separately for individual value. Use
          * the rounding used in Server. Say, for BigDecimal("0.1"), if scale in metdadata is 0, then ArithmeticException
          * would be thrown if RoundingMode is not set
          */
@@ -3629,14 +3686,7 @@ final class TDSWriter {
                     ((Buffer) logBuffer).position(((Buffer) logBuffer).position() + 8);
             }
         } else {
-            valueBytes[0] = (byte) ((value >> 0) & 0xFF);
-            valueBytes[1] = (byte) ((value >> 8) & 0xFF);
-            valueBytes[2] = (byte) ((value >> 16) & 0xFF);
-            valueBytes[3] = (byte) ((value >> 24) & 0xFF);
-            valueBytes[4] = (byte) ((value >> 32) & 0xFF);
-            valueBytes[5] = (byte) ((value >> 40) & 0xFF);
-            valueBytes[6] = (byte) ((value >> 48) & 0xFF);
-            valueBytes[7] = (byte) ((value >> 56) & 0xFF);
+            Util.writeLong(value, valueBytes, 0);
             writeWrappedBytes(valueBytes, 8);
         }
     }
@@ -4032,11 +4082,11 @@ final class TDSWriter {
                                                                                                       // length is 16
                                                                                                       // bits,
         stagingBuffer.put(TDS.PACKET_HEADER_MESSAGE_LENGTH + 1, (byte) ((tdsMessageLength >> 0) & 0xFF)); // written BIG
-                                                                                                          // ENDIAN
+        // ENDIAN
         stagingBuffer.put(TDS.PACKET_HEADER_SPID, (byte) ((tdsChannel.getSPID() >> 8) & 0xFF)); // Note: SPID is 16
                                                                                                 // bits,
         stagingBuffer.put(TDS.PACKET_HEADER_SPID + 1, (byte) ((tdsChannel.getSPID() >> 0) & 0xFF)); // written BIG
-                                                                                                    // ENDIAN
+        // ENDIAN
         stagingBuffer.put(TDS.PACKET_HEADER_SEQUENCE_NUM, (byte) (packetNum % 256));
         stagingBuffer.put(TDS.PACKET_HEADER_WINDOW, (byte) 0); // Window (Reserved/Not used)
 
@@ -4048,11 +4098,11 @@ final class TDSWriter {
                                                                                                       // length is 16
                                                                                                       // bits,
             logBuffer.put(TDS.PACKET_HEADER_MESSAGE_LENGTH + 1, (byte) ((tdsMessageLength >> 0) & 0xFF)); // written BIG
-                                                                                                          // ENDIAN
+            // ENDIAN
             logBuffer.put(TDS.PACKET_HEADER_SPID, (byte) ((tdsChannel.getSPID() >> 8) & 0xFF)); // Note: SPID is 16
                                                                                                 // bits,
             logBuffer.put(TDS.PACKET_HEADER_SPID + 1, (byte) ((tdsChannel.getSPID() >> 0) & 0xFF)); // written BIG
-                                                                                                    // ENDIAN
+            // ENDIAN
             logBuffer.put(TDS.PACKET_HEADER_SEQUENCE_NUM, (byte) (packetNum % 256));
             logBuffer.put(TDS.PACKET_HEADER_WINDOW, (byte) 0); // Window (Reserved/Not used);
         }
@@ -4106,7 +4156,7 @@ final class TDSWriter {
      * @param sName
      *        the optional parameter name
      * @param bOut
-     *        boolean true if the value that follows is being registered as an ouput parameter
+     *        boolean true if the value that follows is being registered as an output parameter
      * @param tdsType
      *        TDS type of the value that follows
      */
@@ -4137,7 +4187,7 @@ final class TDSWriter {
      * @param booleanValue
      *        the data value
      * @param bOut
-     *        boolean true if the data value is being registered as an ouput parameter
+     *        boolean true if the data value is being registered as an output parameter
      */
     void writeRPCBit(String sName, Boolean booleanValue, boolean bOut) throws SQLServerException {
         writeRPCNameValType(sName, bOut, TDSType.BITN);
@@ -4158,7 +4208,7 @@ final class TDSWriter {
      * @param shortValue
      *        the data value
      * @param bOut
-     *        boolean true if the data value is being registered as an ouput parameter
+     *        boolean true if the data value is being registered as an output parameter
      */
     void writeRPCByte(String sName, Byte byteValue, boolean bOut) throws SQLServerException {
         writeRPCNameValType(sName, bOut, TDSType.INTN);
@@ -4179,7 +4229,7 @@ final class TDSWriter {
      * @param shortValue
      *        the data value
      * @param bOut
-     *        boolean true if the data value is being registered as an ouput parameter
+     *        boolean true if the data value is being registered as an output parameter
      */
     void writeRPCShort(String sName, Short shortValue, boolean bOut) throws SQLServerException {
         writeRPCNameValType(sName, bOut, TDSType.INTN);
@@ -4200,7 +4250,7 @@ final class TDSWriter {
      * @param intValue
      *        the data value
      * @param bOut
-     *        boolean true if the data value is being registered as an ouput parameter
+     *        boolean true if the data value is being registered as an output parameter
      */
     void writeRPCInt(String sName, Integer intValue, boolean bOut) throws SQLServerException {
         writeRPCNameValType(sName, bOut, TDSType.INTN);
@@ -4221,7 +4271,7 @@ final class TDSWriter {
      * @param longValue
      *        the data value
      * @param bOut
-     *        boolean true if the data value is being registered as an ouput parameter
+     *        boolean true if the data value is being registered as an output parameter
      */
     void writeRPCLong(String sName, Long longValue, boolean bOut) throws SQLServerException {
         writeRPCNameValType(sName, bOut, TDSType.INTN);
@@ -4242,7 +4292,7 @@ final class TDSWriter {
      * @param floatValue
      *        the data value
      * @param bOut
-     *        boolean true if the data value is being registered as an ouput parameter
+     *        boolean true if the data value is being registered as an output parameter
      */
     void writeRPCReal(String sName, Float floatValue, boolean bOut) throws SQLServerException {
         writeRPCNameValType(sName, bOut, TDSType.FLOATN);
@@ -4276,7 +4326,7 @@ final class TDSWriter {
      * @param doubleValue
      *        the data value
      * @param bOut
-     *        boolean true if the data value is being registered as an ouput parameter
+     *        boolean true if the data value is being registered as an output parameter
      */
     void writeRPCDouble(String sName, Double doubleValue, boolean bOut) throws SQLServerException {
         writeRPCNameValType(sName, bOut, TDSType.FLOATN);
@@ -4310,7 +4360,7 @@ final class TDSWriter {
      * @param nScale
      *        the desired scale
      * @param bOut
-     *        boolean true if the data value is being registered as an ouput parameter
+     *        boolean true if the data value is being registered as an output parameter
      */
     void writeRPCBigDecimal(String sName, BigDecimal bdValue, int nScale, boolean bOut) throws SQLServerException {
         writeRPCNameValType(sName, bOut, TDSType.DECIMALN);
@@ -4371,7 +4421,7 @@ final class TDSWriter {
      * @param sValue
      *        the data value
      * @param bOut
-     *        boolean true if the data value is being registered as an ouput parameter
+     *        boolean true if the data value is being registered as an output parameter
      * @param collation
      *        the collation of the data value
      */
@@ -4590,11 +4640,11 @@ final class TDSWriter {
                     int tokenType = tdsReader.peekTokenType();
 
                     if (TDS.TDS_ERR == tokenType) {
-                        StreamError databaseError = new StreamError();
+                        SQLServerError databaseError = new SQLServerError();
                         databaseError.setFromTDS(tdsReader);
 
-                        SQLServerException.makeFromDatabaseError(con, null, databaseError.getMessage(), databaseError,
-                                false);
+                        SQLServerException.makeFromDatabaseError(con, null, databaseError.getErrorMessage(),
+                                databaseError, false);
                     }
 
                     command.setInterruptsEnabled(true);
@@ -4686,7 +4736,7 @@ final class TDSWriter {
                     BigDecimal bdValue = new BigDecimal(currentColumnStringValue);
 
                     /*
-                     * setScale of all BigDecimal value based on metadata as scale is not sent seperately for individual
+                     * setScale of all BigDecimal value based on metadata as scale is not sent separately for individual
                      * value. Use the rounding used in Server. Say, for BigDecimal("0.1"), if scale in metdadata is 0,
                      * then ArithmeticException would be thrown if RoundingMode is not set
                      */
@@ -4838,7 +4888,7 @@ final class TDSWriter {
                 isShortValue = columnPair.getValue().precision <= DataTypes.SHORT_VARTYPE_MAX_BYTES;
                 isNull = (null == currentObject);
                 if (currentObject instanceof String)
-                    dataLength = isNull ? 0 : (ParameterUtils.HexToBin(currentObject.toString())).length;
+                    dataLength = ParameterUtils.HexToBin(currentObject.toString()).length;
                 else
                     dataLength = isNull ? 0 : ((byte[]) currentObject).length;
                 if (!isShortValue) {
@@ -5246,7 +5296,7 @@ final class TDSWriter {
      * @param subSecondNanos
      *        the sub-second nanoseconds (0 - 999,999,999)
      * @param bOut
-     *        boolean true if the data value is being registered as an ouput parameter
+     *        boolean true if the data value is being registered as an output parameter
      *
      */
     void writeRPCDateTime(String sName, GregorianCalendar cal, int subSecondNanos,
@@ -5941,7 +5991,7 @@ final class TDSWriter {
      * @param streamLength
      *        length of the stream (may be unknown)
      * @param bOut
-     *        boolean true if the data value is being registered as an ouput parameter
+     *        boolean true if the data value is being registered as an output parameter
      * @param jdbcType
      *        The JDBC type used to determine whether the value is textual or non-textual.
      * @param collation
@@ -6040,7 +6090,7 @@ final class TDSWriter {
      * @param streamLength
      *        length of the stream (may be unknown)
      * @param bOut
-     *        boolean true if the data value is being registered as an ouput parameter
+     *        boolean true if the data value is being registered as an output parameter
      * @throws SQLServerException
      */
     void writeRPCXML(String sName, InputStream stream, long streamLength, boolean bOut) throws SQLServerException {
@@ -6079,7 +6129,7 @@ final class TDSWriter {
      * @param reLength
      *        the reader data length (in characters)
      * @param bOut
-     *        boolean true if the data value is being registered as an ouput parameter
+     *        boolean true if the data value is being registered as an output parameter
      * @param collation
      *        The SQL collation associated with the value. Null for non-textual SQL Server types.
      * @throws SQLServerException
@@ -6170,7 +6220,7 @@ final class TDSPacket {
     final boolean isEOM() {
         return TDS.STATUS_BIT_EOM == (header[TDS.PACKET_HEADER_MESSAGE_STATUS] & TDS.STATUS_BIT_EOM);
     }
-};
+}
 
 
 /**
@@ -6196,10 +6246,16 @@ final class TDSReaderMark {
  *
  * Bytes are read from SQL Server into a FIFO of packets. Reader methods traverse the packets to access the data.
  */
-final class TDSReader {
-    private final static Logger logger = Logger.getLogger("com.microsoft.sqlserver.jdbc.internals.TDS.Reader");
+final class TDSReader implements Serializable {
+
+    /**
+     * Always update serialVersionUID when prompted.
+     */
+    private static final long serialVersionUID = -392905303734809731L;
+
+    private static final Logger logger = Logger.getLogger("com.microsoft.sqlserver.jdbc.internals.TDS.Reader");
     final private String traceID;
-    private TimeoutTimer tcpKeepAliveTimeoutTimer;
+    private ScheduledFuture<?> timeout;
 
     final public String toString() {
         return traceID;
@@ -6243,17 +6299,6 @@ final class TDSReader {
         this.tdsChannel = tdsChannel;
         this.con = con;
         this.command = command; // may be null
-        if (null != command) {
-            // if cancelQueryTimeout is set, we should wait for the total amount of queryTimeout + cancelQueryTimeout to
-            // terminate the connection.
-            this.tcpKeepAliveTimeoutTimer = (command.getCancelQueryTimeoutSeconds() > 0
-                    && command.getQueryTimeoutSeconds() > 0)
-                                                             ? (new TimeoutTimer(
-                                                                     command.getCancelQueryTimeoutSeconds()
-                                                                             + command.getQueryTimeoutSeconds(),
-                                                                     null, con))
-                                                             : null;
-        }
         // if the logging level is not detailed than fine or more we will not have proper reader IDs.
         if (logger.isLoggable(Level.FINE))
             traceID = "TDSReader@" + nextReaderID() + " (" + con.toString() + ")";
@@ -6358,11 +6403,15 @@ final class TDSReader {
                 + " should be less than numMsgsSent:" + tdsChannel.numMsgsSent;
 
         TDSPacket newPacket = new TDSPacket(con.getTDSPacketSize());
-        if (null != tcpKeepAliveTimeoutTimer) {
-            if (logger.isLoggable(Level.FINEST)) {
-                logger.finest(this.toString() + ": starting timer...");
+        if (null != command) {
+            // if cancelQueryTimeout is set, we should wait for the total amount of
+            // queryTimeout + cancelQueryTimeout to
+            // terminate the connection.
+            if ((command.getCancelQueryTimeoutSeconds() > 0 && command.getQueryTimeoutSeconds() > 0)) {
+                // if a timeout is configured with this object, add it to the timeout poller
+                int seconds = command.getCancelQueryTimeoutSeconds() + command.getQueryTimeoutSeconds();
+                this.timeout = con.getSharedTimer().schedule(new TDSTimeoutTask(command, con), seconds);
             }
-            tcpKeepAliveTimeoutTimer.start();
         }
         // First, read the packet header.
         for (int headerBytesRead = 0; headerBytesRead < TDS.PACKET_HEADER_SIZE;) {
@@ -6382,11 +6431,9 @@ final class TDSReader {
         }
 
         // if execution was subject to timeout then stop timing
-        if (null != tcpKeepAliveTimeoutTimer) {
-            if (logger.isLoggable(Level.FINEST)) {
-                logger.finest(this.toString() + ":stopping timer...");
-            }
-            tcpKeepAliveTimeoutTimer.stop();
+        if (this.timeout != null) {
+            this.timeout.cancel(false);
+            this.timeout = null;
         }
         // Header size is a 2 byte unsigned short integer in big-endian order.
         int packetLength = Util.readUnsignedShortBigEndian(newPacket.header, TDS.PACKET_HEADER_MESSAGE_LENGTH);
@@ -6976,100 +7023,6 @@ final class TDSReader {
 
 
 /**
- * Timer for use with Commands that support a timeout.
- *
- * Once started, the timer runs for the prescribed number of seconds unless stopped. If the timer runs out, it
- * interrupts its associated Command with a reason like "timed out".
- */
-final class TimeoutTimer implements Runnable {
-    private static final String threadGroupName = "mssql-jdbc-TimeoutTimer";
-    private final int timeoutSeconds;
-    private final TDSCommand command;
-    private volatile Future<?> task;
-    private final SQLServerConnection con;
-
-    private static final ExecutorService executor = Executors.newCachedThreadPool(new ThreadFactory() {
-        private final AtomicReference<ThreadGroup> tgr = new AtomicReference<>();
-        private final AtomicInteger threadNumber = new AtomicInteger(0);
-
-        @Override
-        public Thread newThread(Runnable r) {
-            ThreadGroup tg = tgr.get();
-
-            if (tg == null || tg.isDestroyed()) {
-                tg = new ThreadGroup(threadGroupName);
-                tgr.set(tg);
-            }
-
-            Thread t = new Thread(tg, r, tg.getName() + "-" + threadNumber.incrementAndGet());
-            t.setDaemon(true);
-            return t;
-        }
-    });
-
-    private volatile boolean canceled = false;
-
-    TimeoutTimer(int timeoutSeconds, TDSCommand command, SQLServerConnection con) {
-        assert timeoutSeconds > 0;
-
-        this.timeoutSeconds = timeoutSeconds;
-        this.command = command;
-        this.con = con;
-    }
-
-    final void start() {
-        task = executor.submit(this);
-    }
-
-    final void stop() {
-        task.cancel(true);
-        canceled = true;
-    }
-
-    public void run() {
-        int secondsRemaining = timeoutSeconds;
-        try {
-            // Poll every second while time is left on the timer.
-            // Return if/when the timer is canceled.
-            do {
-                if (canceled)
-                    return;
-
-                Thread.sleep(1000);
-            } while (--secondsRemaining > 0);
-        } catch (InterruptedException e) {
-            // re-interrupt the current thread, in order to restore the thread's interrupt status.
-            Thread.currentThread().interrupt();
-            return;
-        }
-
-        // If the timer wasn't canceled before it ran out of
-        // time then interrupt the registered command.
-        try {
-            // If TCP Connection to server is silently dropped, exceeding the query timeout on the same connection does
-            // not throw SQLTimeoutException
-            // The application stops responding instead until SocketTimeoutException is thrown. In this case, we must
-            // manually terminate the connection.
-            if (null == command && null != con) {
-                con.terminate(SQLServerException.DRIVER_ERROR_IO_FAILED,
-                        SQLServerException.getErrString("R_connectionIsClosed"));
-            } else {
-                // If the timer wasn't canceled before it ran out of
-                // time then interrupt the registered command.
-                command.interrupt(SQLServerException.getErrString("R_queryTimedOut"));
-            }
-        } catch (SQLServerException e) {
-            // Unfortunately, there's nothing we can do if we
-            // fail to time out the request. There is no way
-            // to report back what happened.
-            assert null != command;
-            command.log(Level.FINE, "Command could not be timed out. Reason: " + e.getMessage());
-        }
-    }
-}
-
-
-/**
  * TDSCommand encapsulates an interruptable TDS conversation.
  *
  * A conversation may consist of one or more TDS request and response messages. A command may be interrupted at any
@@ -7080,7 +7033,12 @@ final class TimeoutTimer implements Runnable {
  * the interrupt event occurs when the timeout period expires. Currently, only the time to receive the response from the
  * channel counts against the timeout period.
  */
-abstract class TDSCommand {
+abstract class TDSCommand implements Serializable {
+    /**
+     * Always update serialVersionUID when prompted.
+     */
+    private static final long serialVersionUID = 5485075546328951857L;
+
     abstract boolean doExecute() throws SQLServerException;
 
     final static Logger logger = Logger.getLogger("com.microsoft.sqlserver.jdbc.internals.TDS.Command");
@@ -7101,10 +7059,6 @@ abstract class TDSCommand {
     final void log(Level level, String message) {
         logger.log(level, toString() + ": " + message);
     }
-
-    // Optional timer that is set if the command was created with a non-zero timeout period.
-    // When the timer expires, the command is interrupted.
-    private final TimeoutTimer timeoutTimer;
 
     // TDS channel accessors
     // These are set/reset at command execution time.
@@ -7194,6 +7148,7 @@ abstract class TDSCommand {
     private volatile boolean readingResponse;
     private int queryTimeoutSeconds;
     private int cancelQueryTimeoutSeconds;
+    private ScheduledFuture<?> timeout;
 
     protected int getQueryTimeoutSeconds() {
         return this.queryTimeoutSeconds;
@@ -7220,7 +7175,6 @@ abstract class TDSCommand {
         this.logContext = logContext;
         this.queryTimeoutSeconds = queryTimeoutSeconds;
         this.cancelQueryTimeoutSeconds = cancelQueryTimeoutSeconds;
-        this.timeoutTimer = (queryTimeoutSeconds > 0) ? (new TimeoutTimer(queryTimeoutSeconds, this, null)) : null;
     }
 
     /**
@@ -7609,11 +7563,9 @@ abstract class TDSCommand {
 
         // If command execution is subject to timeout then start timing until
         // the server returns the first response packet.
-        if (null != timeoutTimer) {
-            if (logger.isLoggable(Level.FINEST))
-                logger.finest(this.toString() + ": Starting timer...");
-
-            timeoutTimer.start();
+        if (queryTimeoutSeconds > 0) {
+            SQLServerConnection conn = tdsReader != null ? tdsReader.getConnection() : null;
+            this.timeout = tdsWriter.getSharedTimer().schedule(new TDSTimeoutTask(this, conn), queryTimeoutSeconds);
         }
 
         if (logger.isLoggable(Level.FINEST))
@@ -7636,11 +7588,9 @@ abstract class TDSCommand {
         } finally {
             // If command execution was subject to timeout then stop timing as soon
             // as the server returns the first response packet or errors out.
-            if (null != timeoutTimer) {
-                if (logger.isLoggable(Level.FINEST))
-                    logger.finest(this.toString() + ": Stopping timer...");
-
-                timeoutTimer.stop();
+            if (this.timeout != null) {
+                this.timeout.cancel(false);
+                this.timeout = null;
             }
         }
 
@@ -7657,6 +7607,11 @@ abstract class TDSCommand {
  * implementation for such commands.
  */
 abstract class UninterruptableTDSCommand extends TDSCommand {
+    /**
+     * Always update serialVersionUID when prompted.
+     */
+    private static final long serialVersionUID = -6457195977162963793L;
+
     UninterruptableTDSCommand(String logContext) {
         super(logContext, 0, 0);
     }

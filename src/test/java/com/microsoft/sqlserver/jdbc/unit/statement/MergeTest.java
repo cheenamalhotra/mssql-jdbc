@@ -5,42 +5,55 @@
 package com.microsoft.sqlserver.jdbc.unit.statement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.fail;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.platform.runner.JUnitPlatform;
 import org.junit.runner.RunWith;
 
+import com.microsoft.sqlserver.jdbc.RandomUtil;
 import com.microsoft.sqlserver.jdbc.TestResource;
+import com.microsoft.sqlserver.jdbc.TestUtils;
+import com.microsoft.sqlserver.testframework.AbstractSQLGenerator;
 import com.microsoft.sqlserver.testframework.AbstractTest;
+import com.microsoft.sqlserver.testframework.Constants;
 import com.microsoft.sqlserver.testframework.DBConnection;
 import com.microsoft.sqlserver.testframework.DBStatement;
-import com.microsoft.sqlserver.testframework.Utils;
 
 
 /**
  * Testing merge queries
  */
 @RunWith(JUnitPlatform.class)
+@Tag(Constants.xAzureSQLDW)
 public class MergeTest extends AbstractTest {
-    private static final String setupTables = "IF OBJECT_ID (N'dbo.CricketTeams', N'U') IS NOT NULL DROP TABLE dbo.CricketTeams;"
-            + "   CREATE TABLE dbo.CricketTeams   (       CricketTeamID tinyint NOT NULL PRIMARY KEY,     CricketTeamCountry nvarchar(30),        CricketTeamContinent nvarchar(50))"
-            + "   INSERT INTO dbo.CricketTeams VALUES      (1, 'Australia', 'Australia'),      (2, 'India', 'Asia'),       (3, 'Pakistan', 'Asia'),        (4, 'Srilanka', 'Asia'),        (5, 'Bangaladesh', 'Asia'),     (6, 'HongKong', 'Asia'),"
+    static String cricketTeams = RandomUtil.getIdentifier("CricketTeams");
+    static String cricketTeamsUpdated = RandomUtil.getIdentifier("cricketTeamsUpdated");
+
+    private static final String setupTables = "IF OBJECT_ID (N'" + TestUtils.escapeSingleQuotes(cricketTeams)
+            + "', N'U') IS NOT NULL DROP TABLE " + AbstractSQLGenerator.escapeIdentifier(cricketTeams)
+            + Constants.SEMI_COLON + "   CREATE TABLE " + AbstractSQLGenerator.escapeIdentifier(cricketTeams)
+            + "   (       CricketTeamID tinyint NOT NULL PRIMARY KEY,     CricketTeamCountry nvarchar(30),        CricketTeamContinent nvarchar(50))"
+            + "   INSERT INTO " + AbstractSQLGenerator.escapeIdentifier(cricketTeams)
+            + " VALUES      (1, 'Australia', 'Australia'),      (2, 'India', 'Asia'),       (3, 'Pakistan', 'Asia'),        (4, 'Srilanka', 'Asia'),        (5, 'Bangaladesh', 'Asia'),     (6, 'HongKong', 'Asia'),"
             + "     (7, 'U.A.E', 'Asia'),      (8, 'England', 'Europe'),       (9, 'South Africa', 'Africa'),      (10, 'West Indies', 'North America');"
-            + "   SELECT * FROM CricketTeams  IF OBJECT_ID (N'dbo.CricketTeams_UpdatedList', N'U') IS NOT NULL        DROP TABLE dbo.CricketTeams_UpdatedList;"
-            + "   CREATE TABLE dbo.CricketTeams_UpdatedList   (       CricketTeamID tinyint NOT NULL PRIMARY KEY,     CricketTeamCountry nvarchar(30),        CricketTeamContinent nvarchar(50))"
-            + "INSERT INTO dbo.CricketTeams_UpdatedList VALUES  (1, 'Australia', 'Australia'),     (2, 'India', 'Asia'),       (3, 'Pakistan', 'Asia'),     (4, 'Srilanka', 'Asia'),   (5, 'Bangaladesh', 'Asia'),"
+            + "   SELECT * FROM " + AbstractSQLGenerator.escapeIdentifier(cricketTeams) + "  IF OBJECT_ID (N'"
+            + TestUtils.escapeSingleQuotes(cricketTeams) + "_UpdatedList', N'U') IS NOT NULL        DROP TABLE "
+            + AbstractSQLGenerator.escapeIdentifier(cricketTeamsUpdated) + Constants.SEMI_COLON + "   CREATE TABLE "
+            + AbstractSQLGenerator.escapeIdentifier(cricketTeamsUpdated)
+            + "   (       CricketTeamID tinyint NOT NULL PRIMARY KEY,     CricketTeamCountry nvarchar(30),        CricketTeamContinent nvarchar(50))"
+            + "INSERT INTO " + AbstractSQLGenerator.escapeIdentifier(cricketTeamsUpdated)
+            + " VALUES  (1, 'Australia', 'Australia'),     (2, 'India', 'Asia'),       (3, 'Pakistan', 'Asia'),     (4, 'Srilanka', 'Asia'),   (5, 'Bangaladesh', 'Asia'),"
             + " (6, 'Thailand', 'Asia'),      (8, 'England', 'Europe'),       (9, 'South Africa', 'Africa'),      (10, 'West Indies', 'North America'),       (11, 'Zimbabwe', 'Africa');";
 
-    private static final String mergeCmd2 = "MERGE dbo.CricketTeams AS TARGET "
-            + "USING dbo.CricketTeams_UpdatedList AS SOURCE " + "ON (TARGET.CricketTeamID = SOURCE.CricketTeamID) "
+    private static final String mergeCmd2 = "MERGE " + AbstractSQLGenerator.escapeIdentifier(cricketTeams)
+            + " AS TARGET " + "USING " + AbstractSQLGenerator.escapeIdentifier(cricketTeamsUpdated) + " AS SOURCE "
+            + "ON (TARGET.CricketTeamID = SOURCE.CricketTeamID) "
             + "WHEN MATCHED AND TARGET.CricketTeamContinent <> SOURCE.CricketTeamContinent OR "
             + "TARGET.CricketTeamCountry <> SOURCE.CricketTeamCountry "
             + "THEN UPDATE SET TARGET.CricketTeamContinent = SOURCE.CricketTeamContinent ,"
@@ -55,7 +68,6 @@ public class MergeTest extends AbstractTest {
      * @throws Exception
      */
     @Test
-    @DisplayName("Merge Test")
     public void runTest() throws Exception {
         try (DBConnection conn = new DBConnection(connectionString)) {
             if (conn.getServerVersion() >= 10) {
@@ -77,14 +89,10 @@ public class MergeTest extends AbstractTest {
      * @throws Exception
      */
     @AfterAll
-    public static void afterAll() throws Exception {
-
-        try (Connection con = DriverManager.getConnection(connectionString); Statement stmt = con.createStatement()) {
-            try {
-                Utils.dropTableIfExists("dbo.CricketTeams", stmt);
-            } catch (Exception ex) {
-                fail(ex.toString());
-            }
+    public static void afterAll() throws SQLException {
+        try (Statement stmt = connection.createStatement()) {
+            TestUtils.dropTableIfExists(AbstractSQLGenerator.escapeIdentifier(cricketTeams), stmt);
+            TestUtils.dropTableIfExists(AbstractSQLGenerator.escapeIdentifier(cricketTeamsUpdated), stmt);
         }
     }
 }

@@ -4,6 +4,7 @@
  */
 package com.microsoft.sqlserver.jdbc.bulkCopy;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.sql.Connection;
@@ -11,6 +12,7 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 
+import com.microsoft.sqlserver.jdbc.ComparisonUtil;
 import com.microsoft.sqlserver.jdbc.ISQLServerBulkRecord;
 import com.microsoft.sqlserver.jdbc.SQLServerBulkCopy;
 import com.microsoft.sqlserver.jdbc.TestResource;
@@ -19,7 +21,6 @@ import com.microsoft.sqlserver.testframework.DBConnection;
 import com.microsoft.sqlserver.testframework.DBResultSet;
 import com.microsoft.sqlserver.testframework.DBStatement;
 import com.microsoft.sqlserver.testframework.DBTable;
-import com.microsoft.sqlserver.testframework.util.ComparisonUtil;
 
 
 /**
@@ -58,14 +59,16 @@ class BulkCopyTestUtil {
     static void performBulkCopy(BulkCopyTestWrapper wrapper, DBTable sourceTable, boolean validateResult) {
         DBTable destinationTable = null;
         try (DBConnection con = new DBConnection(wrapper.getConnectionString());
+                DBConnection conBulkCopy = new DBConnection(wrapper.getDataSource());
                 DBStatement stmt = con.createStatement()) {
-
             destinationTable = sourceTable.cloneSchema();
             stmt.createTable(destinationTable);
-            try (DBResultSet srcResultSet = stmt
-                    .executeQuery("SELECT * FROM " + sourceTable.getEscapedTableName() + ";");
-                    SQLServerBulkCopy bulkCopy = wrapper.isUsingConnection() ? new SQLServerBulkCopy(
-                            (Connection) con.product()) : new SQLServerBulkCopy(wrapper.getConnectionString())) {
+
+            try (DBResultSet srcResultSet = stmt.executeQuery("SELECT * FROM " + sourceTable.getEscapedTableName()
+                    + " ORDER BY " + sourceTable.getEscapedColumnName(0));
+                    SQLServerBulkCopy bulkCopy = wrapper
+                            .isUsingConnection() ? new SQLServerBulkCopy((Connection) conBulkCopy.product())
+                                                 : new SQLServerBulkCopy(wrapper.getConnectionString())) {
                 if (wrapper.isUsingBulkCopyOptions()) {
                     bulkCopy.setBulkCopyOptions(wrapper.getBulkOptions());
                 }
@@ -91,8 +94,9 @@ class BulkCopyTestUtil {
             } catch (SQLException ex) {
                 fail(ex.getMessage());
             } finally {
-                stmt.dropTable(destinationTable);
-                con.close();
+                if (null != destinationTable) {
+                    stmt.dropTable(destinationTable);
+                }
             }
         } catch (SQLException ex) {
             fail(ex.getMessage());
@@ -110,11 +114,12 @@ class BulkCopyTestUtil {
     static void performBulkCopy(BulkCopyTestWrapper wrapper, DBTable sourceTable, DBTable destinationTable,
             boolean validateResult) {
         try (DBConnection con = new DBConnection(wrapper.getConnectionString());
+                DBConnection conBulkCopy = new DBConnection(wrapper.getDataSource());
                 DBStatement stmt = con.createStatement();
-                DBResultSet srcResultSet = stmt
-                        .executeQuery("SELECT * FROM " + sourceTable.getEscapedTableName() + ";");
+                DBResultSet srcResultSet = stmt.executeQuery("SELECT * FROM " + sourceTable.getEscapedTableName()
+                        + " ORDER BY " + sourceTable.getEscapedColumnName(0));
                 SQLServerBulkCopy bulkCopy = wrapper.isUsingConnection() ? new SQLServerBulkCopy(
-                        (Connection) con.product()) : new SQLServerBulkCopy(wrapper.getConnectionString())) {
+                        (Connection) conBulkCopy.product()) : new SQLServerBulkCopy(wrapper.getConnectionString())) {
             if (wrapper.isUsingBulkCopyOptions()) {
                 bulkCopy.setBulkCopyOptions(wrapper.getBulkOptions());
             }
@@ -154,11 +159,12 @@ class BulkCopyTestUtil {
     static void performBulkCopy(BulkCopyTestWrapper wrapper, DBTable sourceTable, DBTable destinationTable,
             boolean validateResult, boolean fail) {
         try (DBConnection con = new DBConnection(wrapper.getConnectionString());
+                DBConnection conBulkCopy = new DBConnection(wrapper.getDataSource());
                 DBStatement stmt = con.createStatement();
-                DBResultSet srcResultSet = stmt
-                        .executeQuery("SELECT * FROM " + sourceTable.getEscapedTableName() + ";");
+                DBResultSet srcResultSet = stmt.executeQuery("SELECT * FROM " + sourceTable.getEscapedTableName()
+                        + " ORDER BY " + sourceTable.getEscapedColumnName(0));
                 SQLServerBulkCopy bulkCopy = wrapper.isUsingConnection() ? new SQLServerBulkCopy(
-                        (Connection) con.product()) : new SQLServerBulkCopy(wrapper.getConnectionString())) {
+                        (Connection) conBulkCopy.product()) : new SQLServerBulkCopy(wrapper.getConnectionString())) {
             try {
                 if (wrapper.isUsingBulkCopyOptions()) {
                     bulkCopy.setBulkCopyOptions(wrapper.getBulkOptions());
@@ -189,8 +195,9 @@ class BulkCopyTestUtil {
                     fail(ex.getMessage());
                 }
             } finally {
-                stmt.dropTable(destinationTable);
-                con.close();
+                if (null != destinationTable) {
+                    stmt.dropTable(destinationTable);
+                }
             }
         } catch (SQLException e) {
             if (!fail) {
@@ -212,11 +219,12 @@ class BulkCopyTestUtil {
     static void performBulkCopy(BulkCopyTestWrapper wrapper, DBTable sourceTable, DBTable destinationTable,
             boolean validateResult, boolean fail, boolean dropDest) {
         try (DBConnection con = new DBConnection(wrapper.getConnectionString());
+                DBConnection conBulkCopy = new DBConnection(wrapper.getDataSource());
                 DBStatement stmt = con.createStatement();
-                DBResultSet srcResultSet = stmt
-                        .executeQuery("SELECT * FROM " + sourceTable.getEscapedTableName() + ";");
+                DBResultSet srcResultSet = stmt.executeQuery("SELECT * FROM " + sourceTable.getEscapedTableName()
+                        + " ORDER BY " + sourceTable.getEscapedColumnName(0));
                 SQLServerBulkCopy bulkCopy = wrapper.isUsingConnection() ? new SQLServerBulkCopy(
-                        (Connection) con.product()) : new SQLServerBulkCopy(wrapper.getConnectionString())) {
+                        (Connection) conBulkCopy.product()) : new SQLServerBulkCopy(wrapper.getConnectionString())) {
             try {
                 if (wrapper.isUsingBulkCopyOptions()) {
                     bulkCopy.setBulkCopyOptions(wrapper.getBulkOptions());
@@ -248,10 +256,9 @@ class BulkCopyTestUtil {
                     fail(ex.getMessage());
                 }
             } finally {
-                if (dropDest) {
+                if (dropDest && null != destinationTable) {
                     stmt.dropTable(destinationTable);
                 }
-                con.close();
             }
         } catch (SQLException ex) {
             if (!fail) {
@@ -270,24 +277,33 @@ class BulkCopyTestUtil {
      */
     static void validateValues(DBConnection con, DBTable sourceTable, DBTable destinationTable) throws SQLException {
         try (DBStatement srcStmt = con.createStatement(); DBStatement dstStmt = con.createStatement();
-                DBResultSet srcResultSet = srcStmt
-                        .executeQuery("SELECT * FROM " + sourceTable.getEscapedTableName() + ";");
+                DBResultSet srcResultSet = srcStmt.executeQuery("SELECT * FROM " + sourceTable.getEscapedTableName()
+                        + " ORDER BY " + sourceTable.getEscapedColumnName(0));
                 DBResultSet dstResultSet = dstStmt
-                        .executeQuery("SELECT * FROM " + destinationTable.getEscapedTableName() + ";")) {
+                        .executeQuery("SELECT * FROM " + destinationTable.getEscapedTableName() + " ORDER BY "
+                                + destinationTable.getEscapedColumnName(0))) {
             ResultSetMetaData destMeta = ((ResultSet) dstResultSet.product()).getMetaData();
             int totalColumns = destMeta.getColumnCount();
 
             // verify data from sourceType and resultSet
+            int numRows = 0;
             while (srcResultSet.next() && dstResultSet.next()) {
+                numRows++;
                 for (int i = 1; i <= totalColumns; i++) {
-                    // TODO: check row and column count in both the tables
-
                     Object srcValue, dstValue;
                     srcValue = srcResultSet.getObject(i);
                     dstValue = dstResultSet.getObject(i);
 
                     ComparisonUtil.compareExpectedAndActual(destMeta.getColumnType(i), srcValue, dstValue);
                 }
+            }
+
+            // verify number of rows and columns
+            assertTrue(((ResultSet) srcResultSet.product()).getMetaData().getColumnCount() == totalColumns);
+
+            if (numRows > 0) {
+                assertTrue(sourceTable.getTotalRows() == numRows);
+                assertTrue(destinationTable.getTotalRows() == numRows);
             }
         }
     }
@@ -301,7 +317,7 @@ class BulkCopyTestUtil {
     static void performBulkCopy(BulkCopyTestWrapper bulkWrapper, ISQLServerBulkRecord srcData, DBTable dstTable) {
         try (DBConnection con = new DBConnection(bulkWrapper.getConnectionString());
                 DBStatement stmt = con.createStatement();
-                SQLServerBulkCopy bc = new SQLServerBulkCopy(bulkWrapper.getConnectionString());) {
+                SQLServerBulkCopy bc = new SQLServerBulkCopy(bulkWrapper.getConnectionString())) {
             bc.setDestinationTableName(dstTable.getEscapedTableName());
             bc.writeToServer(srcData);
             validateValues(con, srcData, dstTable);
@@ -320,8 +336,10 @@ class BulkCopyTestUtil {
     static void validateValues(DBConnection con, ISQLServerBulkRecord srcData,
             DBTable destinationTable) throws Exception {
 
-        try (DBStatement dstStmt = con.createStatement(); DBResultSet dstResultSet = dstStmt
-                .executeQuery("SELECT * FROM " + destinationTable.getEscapedTableName() + ";")) {
+        try (DBStatement dstStmt = con.createStatement();
+                DBResultSet dstResultSet = dstStmt
+                        .executeQuery("SELECT * FROM " + destinationTable.getEscapedTableName() + " ORDER BY "
+                                + destinationTable.getEscapedColumnName(0))) {
             ResultSetMetaData destMeta = ((ResultSet) dstResultSet.product()).getMetaData();
             int totalColumns = destMeta.getColumnCount();
 

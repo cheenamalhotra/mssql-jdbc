@@ -12,9 +12,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.platform.runner.JUnitPlatform;
 import org.junit.runner.RunWith;
@@ -22,6 +22,7 @@ import org.junit.runner.RunWith;
 import com.microsoft.sqlserver.jdbc.ISQLServerBulkRecord;
 import com.microsoft.sqlserver.jdbc.SQLServerException;
 import com.microsoft.sqlserver.testframework.AbstractTest;
+import com.microsoft.sqlserver.testframework.Constants;
 import com.microsoft.sqlserver.testframework.DBConnection;
 import com.microsoft.sqlserver.testframework.DBStatement;
 import com.microsoft.sqlserver.testframework.DBTable;
@@ -33,22 +34,34 @@ import com.microsoft.sqlserver.testframework.sqlType.SqlType;
  */
 @RunWith(JUnitPlatform.class)
 @DisplayName("Test ISQLServerBulkRecord")
+@Tag(Constants.xAzureSQLDW)
 public class BulkCopyISQLServerBulkRecordTest extends AbstractTest {
 
     @Test
     public void testISQLServerBulkRecord() throws SQLException {
+        DBTable dstTable = null;
         try (DBConnection con = new DBConnection(connectionString); DBStatement stmt = con.createStatement()) {
-            DBTable dstTable = new DBTable(true);
+            dstTable = new DBTable(true);
             stmt.createTable(dstTable);
             BulkData Bdata = new BulkData(dstTable);
 
             BulkCopyTestWrapper bulkWrapper = new BulkCopyTestWrapper(connectionString);
-            bulkWrapper.setUsingConnection((0 == ThreadLocalRandom.current().nextInt(2)) ? true : false);
+            bulkWrapper.setUsingConnection((0 == Constants.RANDOM.nextInt(2)) ? true : false, ds);
+            bulkWrapper.setUsingXAConnection((0 == Constants.RANDOM.nextInt(2)) ? true : false, dsXA);
+            bulkWrapper.setUsingPooledConnection((0 == Constants.RANDOM.nextInt(2)) ? true : false, dsPool);
             BulkCopyTestUtil.performBulkCopy(bulkWrapper, Bdata, dstTable);
+        } finally {
+            if (null != dstTable) {
+                try (DBConnection con = new DBConnection(connectionString); DBStatement stmt = con.createStatement()) {
+                    stmt.dropTable(dstTable);
+                }
+            }
         }
     }
 
     class BulkData implements ISQLServerBulkRecord {
+
+        private static final long serialVersionUID = 1L;
 
         private class ColumnMetadata {
             String columnName;
@@ -94,9 +107,13 @@ public class BulkCopyISQLServerBulkRecordTest extends AbstractTest {
                 for (int j = 0; j < totalColumn; j++) {
                     SqlType sqlType = dstTable.getSqlType(j);
                     if (JDBCType.BIT == sqlType.getJdbctype()) {
-                        CurrentRow[j] = ((0 == ThreadLocalRandom.current().nextInt(2)) ? Boolean.FALSE : Boolean.TRUE);
+                        CurrentRow[j] = ((0 == Constants.RANDOM.nextInt(2)) ? Boolean.FALSE : Boolean.TRUE);
                     } else {
-                        CurrentRow[j] = sqlType.createdata();
+                        if (j == 0) {
+                            CurrentRow[j] = i + 1;
+                        } else {
+                            CurrentRow[j] = sqlType.createdata();
+                        }
                     }
                 }
                 data.add(CurrentRow);

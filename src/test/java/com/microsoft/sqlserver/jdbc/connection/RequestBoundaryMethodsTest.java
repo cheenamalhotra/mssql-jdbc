@@ -7,12 +7,14 @@ package com.microsoft.sqlserver.jdbc.connection;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.fail;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.sql.CallableStatement;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -21,23 +23,28 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.platform.runner.JUnitPlatform;
 import org.junit.runner.RunWith;
 
+import com.microsoft.sqlserver.jdbc.RandomUtil;
 import com.microsoft.sqlserver.jdbc.SQLServerConnection;
+import com.microsoft.sqlserver.jdbc.TestUtils;
 import com.microsoft.sqlserver.testframework.AbstractSQLGenerator;
 import com.microsoft.sqlserver.testframework.AbstractTest;
-import com.microsoft.sqlserver.testframework.PrepUtil;
-import com.microsoft.sqlserver.testframework.Utils;
-import com.microsoft.sqlserver.testframework.util.RandomUtil;
+import com.microsoft.sqlserver.testframework.Constants;
 
 
 /**
  * A class for testing Request Boundary Methods.
  */
 @RunWith(JUnitPlatform.class)
+@Tag(Constants.xAzureSQLDW)
+@Tag(Constants.xAzureSQLDB)
 public class RequestBoundaryMethodsTest extends AbstractTest {
+
+    static String tableName = RandomUtil.getIdentifier("RequestBoundaryTable");
 
     /**
      * Tests Request Boundary methods with SQLServerConnection properties that are modifiable through public APIs.
@@ -72,10 +79,10 @@ public class RequestBoundaryMethodsTest extends AbstractTest {
         String sCatalog2 = RandomUtil.getIdentifier("RequestBoundaryDatabase");
         boolean useBulkCopyForBatchInsert2 = false;
 
-        try (SQLServerConnection con = connect()) {
-            if (Utils.isJDBC43OrGreater(con)) {
+        try (SQLServerConnection con = getConnection(); Statement stmt = con.createStatement()) {
+            if (TestUtils.isJDBC43OrGreater(con)) {
                 // Second database
-                con.createStatement().executeUpdate("CREATE DATABASE [" + sCatalog2 + "]");
+                stmt.executeUpdate("CREATE DATABASE [" + sCatalog2 + "]");
 
                 // First set of values.
                 setConnectionFields(con, autoCommitMode1, transactionIsolationLevel1, networkTimeout1, holdability1,
@@ -130,7 +137,10 @@ public class RequestBoundaryMethodsTest extends AbstractTest {
                         useBulkCopyForBatchInsert2);
                 // drop the database
                 con.setCatalog("master");
-                Utils.dropDatabaseIfExists(sCatalog2, con.createStatement());
+            }
+        } finally {
+            try (Connection con = getConnection(); Statement stmt = con.createStatement()) {
+                TestUtils.dropDatabaseIfExists(sCatalog2, stmt);
             }
         }
     }
@@ -142,8 +152,8 @@ public class RequestBoundaryMethodsTest extends AbstractTest {
      */
     @Test
     public void testWarnings() throws SQLException {
-        try (SQLServerConnection con = connect()) {
-            if (Utils.isJDBC43OrGreater(con)) {
+        try (Connection con = getConnection()) {
+            if (TestUtils.isJDBC43OrGreater(con)) {
                 con.beginRequest();
                 generateWarning(con);
                 assertNotNull(con.getWarnings());
@@ -171,25 +181,28 @@ public class RequestBoundaryMethodsTest extends AbstractTest {
      */
     @Test
     public void testOpenTransactions() throws SQLException {
-        ResultSet rs = null;
-        String tableName = null;
-
-        try (SQLServerConnection con = connect(); Statement stmt = con.createStatement();) {
-            if (Utils.isJDBC43OrGreater(con)) {
-                tableName = AbstractSQLGenerator.escapeIdentifier(RandomUtil.getIdentifier("RequestBoundaryTable"));
-                Utils.dropTableIfExists(tableName, stmt);
-                stmt.executeUpdate("CREATE TABLE " + tableName + " (col int)");
+        try (Connection con = getConnection(); Statement stmt = con.createStatement()) {
+            if (TestUtils.isJDBC43OrGreater(con)) {
+                TestUtils.dropTableIfExists(AbstractSQLGenerator.escapeIdentifier(tableName), stmt);
+                stmt.executeUpdate("CREATE TABLE " + AbstractSQLGenerator.escapeIdentifier(tableName) + " (col int)");
                 con.beginRequest();
                 con.setAutoCommit(false);
-                stmt.executeUpdate("INSERT INTO " + tableName + " values(5)");
+                stmt.executeUpdate("INSERT INTO " + AbstractSQLGenerator.escapeIdentifier(tableName) + " values(5)");
                 // endRequest() does a rollback here, the value does not get inserted into the table.
                 con.endRequest();
                 con.commit();
 
-                rs = con.createStatement().executeQuery("SELECT * from " + tableName);
-                assertTrue(!rs.isBeforeFirst(), "Should not have returned a result set.");
-                Utils.dropTableIfExists(tableName, con.createStatement());
+                try (ResultSet rs = con.createStatement()
+                        .executeQuery("SELECT * from " + AbstractSQLGenerator.escapeIdentifier(tableName))) {
+                    assertTrue(!rs.isBeforeFirst(), "Should not have returned a result set.");
+                } finally {
+                    if (null != tableName) {
+                        TestUtils.dropTableIfExists(AbstractSQLGenerator.escapeIdentifier(tableName), stmt);
+                    }
+                }
             }
+        } catch (Exception e) {
+            fail(e.getMessage());
         }
     }
 
@@ -198,72 +211,64 @@ public class RequestBoundaryMethodsTest extends AbstractTest {
      * 
      * @throws SQLException
      */
-    @SuppressWarnings("resource")
     @Test
     public void testStatements() throws SQLException {
-        Statement stmt = null;
-        ResultSet rs = null;
-        Statement stmt1 = null;
-        PreparedStatement ps = null;
-        CallableStatement cs = null;
-        ResultSet rs1 = null;
-        String tableName = null;
+        try (Connection con = getConnection();) {
+            if (TestUtils.isJDBC43OrGreater(con)) {
+                try (Statement stmt1 = con.createStatement()) {
+                    con.beginRequest();
+                    try (Statement stmt = con.createStatement()) {
+                        try (ResultSet rs = stmt.executeQuery("SELECT 1")) {
+                            rs.next();
+                            assertEquals(1, rs.getInt(1));
+                            con.endRequest();
 
-        try (SQLServerConnection con = connect();) {
-            if (Utils.isJDBC43OrGreater(con)) {
-                stmt1 = con.createStatement();
-                con.beginRequest();
-                stmt = con.createStatement();
-                rs = stmt.executeQuery("SELECT 1");
-                rs.next();
-                assertEquals(1, rs.getInt(1));
-                con.endRequest();
-
-                assertTrue(!stmt1.isClosed(),
-                        "Statement created outside of beginRequest()/endRequest() block should not be closed.");
-                assertTrue(stmt.isClosed(),
-                        "Statment created inside beginRequest()/endRequest() block should be closed after endRequest().");
-                assertTrue(rs.isClosed(), "ResultSet should be closed after endRequest().");
-                stmt1.close();
+                            assertTrue(!stmt1.isClosed(),
+                                    "Statement created outside of beginRequest()/endRequest() block should not be closed.");
+                            assertTrue(stmt.isClosed(),
+                                    "Statement created inside beginRequest()/endRequest() block should be closed after endRequest().");
+                            assertTrue(rs.isClosed(), "ResultSet should be closed after endRequest().");
+                        }
+                    }
+                }
 
                 // Multiple statements inside beginRequest()/endRequest() block
                 con.beginRequest();
-                stmt = con.createStatement();
-                tableName = AbstractSQLGenerator.escapeIdentifier(RandomUtil.getIdentifier("RequestBoundary"));
-                Utils.dropTableIfExists(tableName, stmt);
-                stmt.executeUpdate("CREATE TABLE " + tableName + " (col int)");
-                ps = con.prepareStatement("INSERT INTO " + tableName + " values (?)");
-                ps.setInt(1, 2);
-                ps.executeUpdate();
+                try (Statement stmt = con.createStatement()) {
+                    TestUtils.dropTableIfExists(AbstractSQLGenerator.escapeIdentifier(tableName), stmt);
+                    stmt.executeUpdate(
+                            "CREATE TABLE " + AbstractSQLGenerator.escapeIdentifier(tableName) + " (col int)");
+                    try (PreparedStatement ps = con.prepareStatement(
+                            "INSERT INTO " + AbstractSQLGenerator.escapeIdentifier(tableName) + " values (?)")) {
+                        ps.setInt(1, 2);
+                        ps.executeUpdate();
 
-                stmt1 = con.createStatement();
-                rs1 = stmt1.executeQuery("SELECT * FROM " + tableName);
-                rs1.next();
-                assertEquals(2, rs1.getInt(1));
-                Utils.dropTableIfExists(tableName, stmt);
+                        try (Statement stmt1 = con.createStatement(); ResultSet rs = stmt1
+                                .executeQuery("SELECT * FROM " + AbstractSQLGenerator.escapeIdentifier(tableName))) {
+                            rs.next();
+                            assertEquals(2, rs.getInt(1));
+                            TestUtils.dropTableIfExists(AbstractSQLGenerator.escapeIdentifier(tableName), stmt);
 
-                cs = con.prepareCall("{call sp_server_info}");
-                cs.execute();
-                con.endRequest();
+                            try (CallableStatement cs = con.prepareCall("{call sp_server_info}")) {
+                                cs.execute();
+                                con.endRequest();
 
-                assertTrue(stmt.isClosed());
-                assertTrue(ps.isClosed());
-                assertTrue(stmt1.isClosed());
-                assertTrue(cs.isClosed());
-                assertTrue(rs1.isClosed());
-            }
-        } finally {
-            if (null != stmt) {
-                stmt.close();
-            }
-            if (null != stmt1) {
-                stmt1.close();
-            }
-            if (null != ps) {
-                ps.close();
-            }
-            if (null != cs) {
-                cs.close();
+                                assertTrue(stmt.isClosed());
+                                assertTrue(ps.isClosed());
+                                assertTrue(stmt1.isClosed());
+                                assertTrue(cs.isClosed());
+                                assertTrue(rs.isClosed());
+                            }
+                        }
+                    }
+                } finally {
+                    if (null != tableName) {
+                        try (Statement stmt = con.createStatement()) {
+                            TestUtils.dropTableIfExists(AbstractSQLGenerator.escapeIdentifier(tableName), stmt);
+                        }
+                    }
+                }
+
             }
         }
     }
@@ -276,7 +281,7 @@ public class RequestBoundaryMethodsTest extends AbstractTest {
     @Test
     public void testThreads() throws SQLException {
         class Variables {
-            volatile SQLServerConnection con = null;
+            volatile Connection con = null;
             volatile Statement stmt = null;
             volatile PreparedStatement pstmt = null;
         }
@@ -284,8 +289,8 @@ public class RequestBoundaryMethodsTest extends AbstractTest {
         final Variables sharedVariables = new Variables();
         final CountDownLatch latch = new CountDownLatch(3);
         try {
-            sharedVariables.con = connect();
-            if (Utils.isJDBC43OrGreater(sharedVariables.con)) {
+            sharedVariables.con = getConnection();
+            if (TestUtils.isJDBC43OrGreater(sharedVariables.con)) {
                 Thread thread1 = new Thread() {
                     public void run() {
                         try {
@@ -303,10 +308,11 @@ public class RequestBoundaryMethodsTest extends AbstractTest {
                     public void run() {
                         try {
                             sharedVariables.stmt = sharedVariables.con.createStatement();
-                            ResultSet rs = sharedVariables.stmt.executeQuery("SELECT 1");
-                            rs.next();
-                            assertEquals(1, rs.getInt(1));
-                            latch.countDown();
+                            try (ResultSet rs = sharedVariables.stmt.executeQuery("SELECT 1")) {
+                                rs.next();
+                                assertEquals(1, rs.getInt(1));
+                                latch.countDown();
+                            }
                         } catch (SQLException e) {
                             e.printStackTrace();
                             Thread.currentThread().interrupt();
@@ -318,10 +324,11 @@ public class RequestBoundaryMethodsTest extends AbstractTest {
                     public void run() {
                         try {
                             sharedVariables.pstmt = sharedVariables.con.prepareStatement("SELECT 1");
-                            ResultSet rs = sharedVariables.pstmt.executeQuery();
-                            rs.next();
-                            assertEquals(1, rs.getInt(1));
-                            latch.countDown();
+                            try (ResultSet rs = sharedVariables.pstmt.executeQuery()) {
+                                rs.next();
+                                assertEquals(1, rs.getInt(1));
+                                latch.countDown();
+                            }
                         } catch (SQLException e) {
                             e.printStackTrace();
                             Thread.currentThread().interrupt();
@@ -345,8 +352,8 @@ public class RequestBoundaryMethodsTest extends AbstractTest {
                 assertTrue(sharedVariables.pstmt.isClosed());
             }
         } catch (InterruptedException e) {
-            e.printStackTrace();
             Thread.currentThread().interrupt();
+            fail(e.getMessage());
         } finally {
             if (null != sharedVariables.stmt) {
                 sharedVariables.stmt.close();
@@ -378,16 +385,6 @@ public class RequestBoundaryMethodsTest extends AbstractTest {
                     "A failure is expected if you are adding a new public non-static method to SQLServerConnection."
                             + " See the test for instructions on how to fix the failure. ");
         }
-    }
-
-    private SQLServerConnection connect() throws SQLException {
-        SQLServerConnection connection = null;
-        try {
-            connection = PrepUtil.getConnection(getConfiguredProperty("mssql_jdbc_test_connection_properties"));
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        }
-        return connection;
     }
 
     private void setConnectionFields(SQLServerConnection con, boolean autoCommitMode, int transactionIsolationLevel,
@@ -433,7 +430,7 @@ public class RequestBoundaryMethodsTest extends AbstractTest {
                 "useBulkCopyForBatchInsert" + description);
     }
 
-    private void generateWarning(SQLServerConnection con) throws SQLException {
+    private void generateWarning(Connection con) throws SQLException {
         con.setClientInfo("name", "value");
     }
 

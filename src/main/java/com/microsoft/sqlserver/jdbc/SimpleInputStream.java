@@ -25,8 +25,9 @@ abstract class BaseInputStream extends InputStream {
     // Flag indicating whether the stream consumes and discards data as it reads it
     final boolean isStreaming;
 
-    /** Generate the logging ID */
-    private String parentLoggingInfo = "";
+    // Stated length of the payload
+    int payloadLength;
+
     private static final AtomicInteger lastLoggingID = new AtomicInteger(0);
 
     private static int nextLoggingID() {
@@ -34,7 +35,7 @@ abstract class BaseInputStream extends InputStream {
     }
 
     static final java.util.logging.Logger logger = java.util.logging.Logger
-            .getLogger("com.microsoft.sqlserver.jdbc.internals.InputStream");;
+            .getLogger("com.microsoft.sqlserver.jdbc.internals.InputStream");
     private String traceID;
 
     final public String toString() {
@@ -44,7 +45,6 @@ abstract class BaseInputStream extends InputStream {
     }
 
     final void setLoggingInfo(String info) {
-        parentLoggingInfo = info;
         if (logger.isLoggable(java.util.logging.Level.FINER))
             logger.finer(toString());
     }
@@ -130,9 +130,6 @@ abstract class BaseInputStream extends InputStream {
 
 
 final class SimpleInputStream extends BaseInputStream {
-
-    // Stated length of the payload
-    private final int payloadLength;
 
     /**
      * Initializes the input stream.

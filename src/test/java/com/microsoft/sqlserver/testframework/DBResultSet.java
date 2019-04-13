@@ -20,12 +20,13 @@ import java.util.Calendar;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import com.microsoft.sqlserver.testframework.Utils.DBBinaryStream;
-import com.microsoft.sqlserver.testframework.Utils.DBCharacterStream;
+import com.microsoft.sqlserver.jdbc.TestUtils;
+import com.microsoft.sqlserver.jdbc.TestUtils.DBBinaryStream;
+import com.microsoft.sqlserver.jdbc.TestUtils.DBCharacterStream;
 
 
 /**
- * wrapper class for ResultSet
+ * wrapper Class<?> for ResultSet
  * 
  * @author Microsoft
  *
@@ -37,16 +38,6 @@ public class DBResultSet extends AbstractParentWrapper implements AutoCloseable 
     // TODO: add resultSet level holdability
     // TODO: add concurrency control
     public static final Logger log = Logger.getLogger("DBResultSet");
-
-    public static final int TYPE_DYNAMIC = ResultSet.TYPE_SCROLL_SENSITIVE + 1;
-    public static final int CONCUR_OPTIMISTIC = ResultSet.CONCUR_UPDATABLE + 2;
-    public static final int TYPE_CURSOR_FORWARDONLY = ResultSet.TYPE_FORWARD_ONLY + 1001;
-    public static final int TYPE_FORWARD_ONLY = ResultSet.TYPE_FORWARD_ONLY;
-    public static final int CONCUR_READ_ONLY = ResultSet.CONCUR_READ_ONLY;
-    public static final int TYPE_SCROLL_INSENSITIVE = ResultSet.TYPE_SCROLL_INSENSITIVE;
-    public static final int TYPE_SCROLL_SENSITIVE = ResultSet.TYPE_SCROLL_SENSITIVE;
-    public static final int CONCUR_UPDATABLE = ResultSet.CONCUR_UPDATABLE;
-    public static final int TYPE_DIRECT_FORWARDONLY = ResultSet.TYPE_FORWARD_ONLY + 1000;
 
     protected DBTable currentTable;
     public int _currentrow = -1; // The row this rowset is currently pointing to
@@ -183,7 +174,7 @@ public class DBResultSet extends AbstractParentWrapper implements AutoCloseable 
         currentTable = table;
         int totalColumns = ((ResultSet) product()).getMetaData().getColumnCount();
 
-        Class _class = Object.class;
+        Class<?> _class = Object.class;
         for (int i = 0; i < totalColumns; i++)
             verifydata(i, _class);
     }
@@ -195,14 +186,18 @@ public class DBResultSet extends AbstractParentWrapper implements AutoCloseable 
      * @throws SQLException
      * @throws Exception
      */
-    public void verifydata(int ordinal, Class coercion) throws SQLException {
+    public void verifydata(int ordinal, Class<?> coercion) throws SQLException {
         Object expectedData = currentTable.columns.get(ordinal).getRowValue(_currentrow);
 
         // getXXX - default mapping
         Object retrieved = this.getXXX(ordinal + 1, coercion);
 
-        // Verify
-        verifydata(ordinal, coercion, expectedData, retrieved);
+        try {
+            // Verify
+            verifydata(ordinal, coercion, expectedData, retrieved);
+        } catch (SQLException e) {
+            System.out.println("Compared & failed: " + expectedData + " ::: " + retrieved + " <<< ");
+        }
     }
 
     /**
@@ -214,7 +209,7 @@ public class DBResultSet extends AbstractParentWrapper implements AutoCloseable 
      * @param retrieved
      * @throws SQLException
      */
-    public void verifydata(int ordinal, Class coercion, Object expectedData, Object retrieved) throws SQLException {
+    public void verifydata(int ordinal, Class<?> coercion, Object expectedData, Object retrieved) throws SQLException {
         metaData = this.getMetaData();
         switch (metaData.getColumnType(ordinal + 1)) {
             case java.sql.Types.BIGINT:
@@ -313,7 +308,7 @@ public class DBResultSet extends AbstractParentWrapper implements AutoCloseable 
 
             case java.sql.Types.TIME:
                 String retrievedTime = retrieved.toString();
-                String expectedTime = expectedData.toString().substring(0, retrievedTime.length());
+                String expectedTime = expectedData.toString();
                 assertTrue(expectedTime.equalsIgnoreCase(retrievedTime),
                         "Unexpected time value, expected: " + expectedTime + " ,received: " + retrievedTime);
                 break;
@@ -324,7 +319,7 @@ public class DBResultSet extends AbstractParentWrapper implements AutoCloseable 
                 break;
 
             case java.sql.Types.BINARY:
-                assertTrue(Utils.parseByte((byte[]) expectedData, (byte[]) retrieved),
+                assertTrue(TestUtils.parseByte((byte[]) expectedData, (byte[]) retrieved),
                         " unexpected BINARY value, expected: " + expectedData + " ,received: " + retrieved);
                 break;
 
@@ -345,7 +340,7 @@ public class DBResultSet extends AbstractParentWrapper implements AutoCloseable 
      * @return
      * @throws SQLException
      */
-    public Object getXXX(Object idx, Class coercion) throws SQLException {
+    public Object getXXX(Object idx, Class<?> coercion) throws SQLException {
         int intOrdinal = 0;
         String strOrdinal = "";
         boolean isInteger = false;

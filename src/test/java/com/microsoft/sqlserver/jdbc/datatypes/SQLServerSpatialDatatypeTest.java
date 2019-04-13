@@ -4,10 +4,11 @@
  */
 package com.microsoft.sqlserver.jdbc.datatypes;
 
+import static org.junit.Assert.fail;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.IOException;
-import java.sql.DriverManager;
+import java.sql.Connection;
 import java.sql.ParameterMetaData;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -18,19 +19,22 @@ import java.util.List;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.platform.runner.JUnitPlatform;
 import org.junit.runner.RunWith;
 
 import com.microsoft.sqlserver.jdbc.Geography;
 import com.microsoft.sqlserver.jdbc.Geometry;
-import com.microsoft.sqlserver.jdbc.SQLServerConnection;
+import com.microsoft.sqlserver.jdbc.RandomUtil;
 import com.microsoft.sqlserver.jdbc.SQLServerException;
 import com.microsoft.sqlserver.jdbc.SQLServerPreparedStatement;
 import com.microsoft.sqlserver.jdbc.SQLServerResultSet;
 import com.microsoft.sqlserver.jdbc.TestResource;
+import com.microsoft.sqlserver.jdbc.TestUtils;
+import com.microsoft.sqlserver.testframework.AbstractSQLGenerator;
 import com.microsoft.sqlserver.testframework.AbstractTest;
-import com.microsoft.sqlserver.testframework.Utils;
+import com.microsoft.sqlserver.testframework.Constants;
 
 
 /**
@@ -40,13 +44,9 @@ import com.microsoft.sqlserver.testframework.Utils;
 @RunWith(JUnitPlatform.class)
 public class SQLServerSpatialDatatypeTest extends AbstractTest {
 
-    static SQLServerConnection con = null;
-    static Statement stmt = null;
-    static String geomTableName = "geometryTestTable";
-    static String geogTableName = "geographyTestTable";
-    static String spatialDatatypeTableName = "spatialDatatypeTestTable";
-    static SQLServerPreparedStatement pstmt = null;
-    static SQLServerResultSet rs = null;
+    static String geomTableName;
+    static String geogTableName;
+    static String spatialDatatypeTableName;
     static boolean isDenaliOrLater = false;
 
     @Test
@@ -188,6 +188,7 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
     }
 
     @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testPointWkt() throws SQLException {
         beforeEachSetup();
         String geoWKT = "POINT(3 40 5 6)";
@@ -198,6 +199,7 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
     }
 
     @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testLineStringWkt() throws SQLException {
         beforeEachSetup();
         String geoWKT = "LINESTRING(1 0, 0 1, -1 0)";
@@ -208,6 +210,7 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
     }
 
     @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testPolygonWkt() throws SQLException {
         beforeEachSetup();
         String geoWKT = "POLYGON((0 0, 0 3, 3 3, 3 0, 0 0), (1 1, 1 2, 2 1, 1 1))";
@@ -218,6 +221,7 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
     }
 
     @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testMultiPointWkt() throws SQLException {
         beforeEachSetup();
         String geoWKT = "MULTIPOINT((2 3), (7 8 9.5))";
@@ -228,6 +232,7 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
     }
 
     @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testMultiLineStringWkt() throws SQLException {
         beforeEachSetup();
         String geoWKT = "MULTILINESTRING((0 2, 1 1), (1 0, 1 1))";
@@ -238,6 +243,7 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
     }
 
     @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testMultiPolygonWkt() throws SQLException {
         beforeEachSetup();
         String geoWKT = "MULTIPOLYGON(((1 1, 1 2, 2 1, 1 1), (0 0, 0 3, 3 3, 3 0, 0 0 7)), ((9 9, 9 10, 10 9, 9 9)))";
@@ -248,6 +254,7 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
     }
 
     @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testGeometryCollectionWkt() throws SQLException {
         String geoWKT;
         if (isDenaliOrLater) {
@@ -267,6 +274,7 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
     }
 
     @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testCircularStringWkt() throws SQLException {
         if (isDenaliOrLater) {
             beforeEachSetup();
@@ -279,6 +287,7 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
     }
 
     @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testCompoundCurveWkt() throws SQLException {
         if (isDenaliOrLater) {
             beforeEachSetup();
@@ -291,6 +300,7 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
     }
 
     @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testCurvePolygonWkt() throws SQLException {
         if (isDenaliOrLater) {
             beforeEachSetup();
@@ -303,32 +313,38 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
     }
 
     @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testFullGlobeWkt() throws SQLException {
-        if (isDenaliOrLater) {
-            beforeEachSetup();
+        try (Connection con = getConnection(); Statement stmt = con.createStatement()) {
+            if (isDenaliOrLater) {
+                beforeEachSetup();
 
-            String geoWKT = "FULLGLOBE";
-            Geography geogWKT = Geography.STGeomFromText(geoWKT, 4326);
+                String geoWKT = "FULLGLOBE";
+                Geography geogWKT = Geography.STGeomFromText(geoWKT, 4326);
 
-            try {
-                Geometry.STGeomFromText(geoWKT, 0);
-            } catch (SQLServerException e) {
-                assertEquals(e.getMessage(), "Fullglobe is not supported for Geometry.");
-            }
+                try {
+                    Geometry.STGeomFromText(geoWKT, 0);
+                } catch (SQLServerException e) {
+                    assertEquals(e.getMessage(), "Fullglobe is not supported for Geometry.");
+                }
 
-            try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con
-                    .prepareStatement("insert into " + geogTableName + " values (?)");) {
-                pstmt.setGeography(1, geogWKT);
-                pstmt.execute();
+                try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con.prepareStatement(
+                        "insert into " + AbstractSQLGenerator.escapeIdentifier(geogTableName) + " values (?)");) {
+                    pstmt.setGeography(1, geogWKT);
+                    pstmt.execute();
 
-                rs = (SQLServerResultSet) stmt.executeQuery("select c1 from " + geogTableName);
-                rs.next();
-                assertEquals(rs.getGeography(1).asTextZM(), geoWKT);
+                    try (SQLServerResultSet rs = (SQLServerResultSet) stmt
+                            .executeQuery("select c1 from " + AbstractSQLGenerator.escapeIdentifier(geogTableName))) {
+                        rs.next();
+                        assertEquals(rs.getGeography(1).asTextZM(), geoWKT);
+                    }
+                }
             }
         }
     }
 
     @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testIrregularCases() throws SQLException {
         beforeEachSetup();
 
@@ -442,6 +458,7 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
     }
 
     @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testAllTypes() throws SQLException {
         if (isDenaliOrLater) {
             beforeEachSetup();
@@ -474,118 +491,126 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
             Geography geogWKT;
 
             // Geometry
-            try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con
-                    .prepareStatement("insert into " + geomTableName + " values (?)");) {
-                geomWKT = Geometry.STGeomFromText(geoWKTPoint, 0);
-                pstmt.setGeometry(1, geomWKT);
-                pstmt.executeUpdate();
+            try (Connection con = getConnection(); Statement stmt = con.createStatement()) {
 
-                geomWKT = Geometry.STGeomFromText(geoWKTLineString, 0);
-                pstmt.setGeometry(1, geomWKT);
-                pstmt.executeUpdate();
+                try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con.prepareStatement(
+                        "insert into " + AbstractSQLGenerator.escapeIdentifier(geomTableName) + " values (?)")) {
+                    geomWKT = Geometry.STGeomFromText(geoWKTPoint, 0);
+                    pstmt.setGeometry(1, geomWKT);
+                    pstmt.executeUpdate();
 
-                geomWKT = Geometry.STGeomFromText(geoWKTCircularString, 0);
-                pstmt.setGeometry(1, geomWKT);
-                pstmt.executeUpdate();
+                    geomWKT = Geometry.STGeomFromText(geoWKTLineString, 0);
+                    pstmt.setGeometry(1, geomWKT);
+                    pstmt.executeUpdate();
 
-                geomWKT = Geometry.STGeomFromText(geoWKTCompoundCurve, 0);
-                pstmt.setGeometry(1, geomWKT);
-                pstmt.executeUpdate();
+                    geomWKT = Geometry.STGeomFromText(geoWKTCircularString, 0);
+                    pstmt.setGeometry(1, geomWKT);
+                    pstmt.executeUpdate();
 
-                geomWKT = Geometry.STGeomFromText(geoWKTCurvePolygon, 0);
-                pstmt.setGeometry(1, geomWKT);
-                pstmt.executeUpdate();
+                    geomWKT = Geometry.STGeomFromText(geoWKTCompoundCurve, 0);
+                    pstmt.setGeometry(1, geomWKT);
+                    pstmt.executeUpdate();
 
-                geomWKT = Geometry.STGeomFromText(geoWKTPolygon, 0);
-                pstmt.setGeometry(1, geomWKT);
-                pstmt.executeUpdate();
+                    geomWKT = Geometry.STGeomFromText(geoWKTCurvePolygon, 0);
+                    pstmt.setGeometry(1, geomWKT);
+                    pstmt.executeUpdate();
 
-                geomWKT = Geometry.STGeomFromText(geoWKTMultiPoint, 0);
-                pstmt.setGeometry(1, geomWKT);
-                pstmt.executeUpdate();
+                    geomWKT = Geometry.STGeomFromText(geoWKTPolygon, 0);
+                    pstmt.setGeometry(1, geomWKT);
+                    pstmt.executeUpdate();
 
-                geomWKT = Geometry.STGeomFromText(geoWKTMultiLineString, 0);
-                pstmt.setGeometry(1, geomWKT);
-                pstmt.executeUpdate();
+                    geomWKT = Geometry.STGeomFromText(geoWKTMultiPoint, 0);
+                    pstmt.setGeometry(1, geomWKT);
+                    pstmt.executeUpdate();
 
-                geomWKT = Geometry.STGeomFromText(geoWKTMultiPolygon, 0);
-                pstmt.setGeometry(1, geomWKT);
-                pstmt.executeUpdate();
+                    geomWKT = Geometry.STGeomFromText(geoWKTMultiLineString, 0);
+                    pstmt.setGeometry(1, geomWKT);
+                    pstmt.executeUpdate();
 
-                geomWKT = Geometry.STGeomFromText(geoWKTGeometryCollection, 0);
-                pstmt.setGeometry(1, geomWKT);
-                pstmt.executeUpdate();
+                    geomWKT = Geometry.STGeomFromText(geoWKTMultiPolygon, 0);
+                    pstmt.setGeometry(1, geomWKT);
+                    pstmt.executeUpdate();
 
-                rs = (SQLServerResultSet) stmt.executeQuery("select c1 from " + geomTableName);
-                for (int i = 0; i < geoWKTList.size(); i++) {
-                    rs.next();
-                    assertEquals(rs.getGeometry(1).asTextZM(), geoWKTList.get(i));
+                    geomWKT = Geometry.STGeomFromText(geoWKTGeometryCollection, 0);
+                    pstmt.setGeometry(1, geomWKT);
+                    pstmt.executeUpdate();
+
+                    try (SQLServerResultSet rs = (SQLServerResultSet) stmt
+                            .executeQuery("select c1 from " + AbstractSQLGenerator.escapeIdentifier(geomTableName))) {
+                        for (int i = 0; i < geoWKTList.size(); i++) {
+                            rs.next();
+                            assertEquals(rs.getGeometry(1).asTextZM(), geoWKTList.get(i));
+                        }
+                    }
                 }
-            }
 
-            // Geography
-            try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con
-                    .prepareStatement("insert into " + geogTableName + " values (?)");) {
-                geogWKT = Geography.STGeomFromText(geoWKTPoint, 4326);
-                pstmt.setGeography(1, geogWKT);
+                // Geography
+                try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con.prepareStatement(
+                        "insert into " + AbstractSQLGenerator.escapeIdentifier(geogTableName) + " values (?)")) {
+                    geogWKT = Geography.STGeomFromText(geoWKTPoint, 4326);
+                    pstmt.setGeography(1, geogWKT);
 
-                pstmt.executeUpdate();
+                    pstmt.executeUpdate();
 
-                geogWKT = Geography.STGeomFromText(geoWKTLineString, 4326);
-                pstmt.setGeography(1, geogWKT);
+                    geogWKT = Geography.STGeomFromText(geoWKTLineString, 4326);
+                    pstmt.setGeography(1, geogWKT);
 
-                pstmt.executeUpdate();
+                    pstmt.executeUpdate();
 
-                geogWKT = Geography.STGeomFromText(geoWKTCircularString, 4326);
-                pstmt.setGeography(1, geogWKT);
+                    geogWKT = Geography.STGeomFromText(geoWKTCircularString, 4326);
+                    pstmt.setGeography(1, geogWKT);
 
-                pstmt.executeUpdate();
+                    pstmt.executeUpdate();
 
-                geogWKT = Geography.STGeomFromText(geoWKTCompoundCurve, 4326);
-                pstmt.setGeography(1, geogWKT);
+                    geogWKT = Geography.STGeomFromText(geoWKTCompoundCurve, 4326);
+                    pstmt.setGeography(1, geogWKT);
 
-                pstmt.executeUpdate();
+                    pstmt.executeUpdate();
 
-                geogWKT = Geography.STGeomFromText(geoWKTCurvePolygon, 4326);
-                pstmt.setGeography(1, geogWKT);
+                    geogWKT = Geography.STGeomFromText(geoWKTCurvePolygon, 4326);
+                    pstmt.setGeography(1, geogWKT);
 
-                pstmt.executeUpdate();
+                    pstmt.executeUpdate();
 
-                geogWKT = Geography.STGeomFromText(geoWKTPolygon, 4326);
-                pstmt.setGeography(1, geogWKT);
+                    geogWKT = Geography.STGeomFromText(geoWKTPolygon, 4326);
+                    pstmt.setGeography(1, geogWKT);
 
-                pstmt.executeUpdate();
+                    pstmt.executeUpdate();
 
-                geogWKT = Geography.STGeomFromText(geoWKTMultiPoint, 4326);
-                pstmt.setGeography(1, geogWKT);
+                    geogWKT = Geography.STGeomFromText(geoWKTMultiPoint, 4326);
+                    pstmt.setGeography(1, geogWKT);
 
-                pstmt.executeUpdate();
+                    pstmt.executeUpdate();
 
-                geogWKT = Geography.STGeomFromText(geoWKTMultiLineString, 4326);
-                pstmt.setGeography(1, geogWKT);
+                    geogWKT = Geography.STGeomFromText(geoWKTMultiLineString, 4326);
+                    pstmt.setGeography(1, geogWKT);
 
-                pstmt.executeUpdate();
+                    pstmt.executeUpdate();
 
-                geogWKT = Geography.STGeomFromText(geoWKTMultiPolygon, 4326);
-                pstmt.setGeography(1, geogWKT);
+                    geogWKT = Geography.STGeomFromText(geoWKTMultiPolygon, 4326);
+                    pstmt.setGeography(1, geogWKT);
 
-                pstmt.executeUpdate();
+                    pstmt.executeUpdate();
 
-                geogWKT = Geography.STGeomFromText(geoWKTGeometryCollection, 4326);
-                pstmt.setGeography(1, geogWKT);
+                    geogWKT = Geography.STGeomFromText(geoWKTGeometryCollection, 4326);
+                    pstmt.setGeography(1, geogWKT);
 
-                pstmt.executeUpdate();
+                    pstmt.executeUpdate();
 
-                rs = (SQLServerResultSet) stmt.executeQuery("select c1 from " + geogTableName);
-                for (int i = 0; i < geoWKTList.size(); i++) {
-                    rs.next();
-                    assertEquals(rs.getGeography(1).asTextZM(), geoWKTList.get(i));
+                    try (SQLServerResultSet rs = (SQLServerResultSet) stmt
+                            .executeQuery("select c1 from " + AbstractSQLGenerator.escapeIdentifier(geogTableName))) {
+                        for (int i = 0; i < geoWKTList.size(); i++) {
+                            rs.next();
+                            assertEquals(rs.getGeography(1).asTextZM(), geoWKTList.get(i));
+                        }
+                    }
                 }
             }
         }
     }
 
     @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testMixedAllTypes() throws SQLException {
         if (isDenaliOrLater) {
             beforeEachSetupSpatialDatatype();
@@ -621,122 +646,128 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
             Geometry geomWKT;
             Geography geogWKT;
 
-            try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con
-                    .prepareStatement("insert into " + spatialDatatypeTableName + " values (?, ?, ?, ?, ?)");) {
-                geomWKT = Geometry.STGeomFromText(geoWKTPoint, 0);
-                geogWKT = Geography.STGeomFromText(geoWKTPoint, 4326);
-                pstmt.setGeometry(1, geomWKT);
-                pstmt.setGeography(2, geogWKT);
-                pstmt.setString(3, s);
-                pstmt.setDouble(4, d);
-                pstmt.setInt(5, i2);
+            try (Connection con = getConnection(); Statement stmt = con.createStatement()) {
+                try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con.prepareStatement(
+                        "insert into " + AbstractSQLGenerator.escapeIdentifier(spatialDatatypeTableName)
+                                + " values (?, ?, ?, ?, ?)");) {
+                    geomWKT = Geometry.STGeomFromText(geoWKTPoint, 0);
+                    geogWKT = Geography.STGeomFromText(geoWKTPoint, 4326);
+                    pstmt.setGeometry(1, geomWKT);
+                    pstmt.setGeography(2, geogWKT);
+                    pstmt.setString(3, s);
+                    pstmt.setDouble(4, d);
+                    pstmt.setInt(5, i2);
 
-                pstmt.executeUpdate();
+                    pstmt.executeUpdate();
 
-                geomWKT = Geometry.STGeomFromText(geoWKTLineString, 0);
-                geogWKT = Geography.STGeomFromText(geoWKTLineString, 4326);
-                pstmt.setGeometry(1, geomWKT);
-                pstmt.setGeography(2, geogWKT);
-                pstmt.setString(3, s);
-                pstmt.setDouble(4, d);
-                pstmt.setInt(5, i2);
+                    geomWKT = Geometry.STGeomFromText(geoWKTLineString, 0);
+                    geogWKT = Geography.STGeomFromText(geoWKTLineString, 4326);
+                    pstmt.setGeometry(1, geomWKT);
+                    pstmt.setGeography(2, geogWKT);
+                    pstmt.setString(3, s);
+                    pstmt.setDouble(4, d);
+                    pstmt.setInt(5, i2);
 
-                pstmt.executeUpdate();
+                    pstmt.executeUpdate();
 
-                geomWKT = Geometry.STGeomFromText(geoWKTCircularString, 0);
-                geogWKT = Geography.STGeomFromText(geoWKTCircularString, 4326);
-                pstmt.setGeometry(1, geomWKT);
-                pstmt.setGeography(2, geogWKT);
-                pstmt.setString(3, s);
-                pstmt.setDouble(4, d);
-                pstmt.setInt(5, i2);
+                    geomWKT = Geometry.STGeomFromText(geoWKTCircularString, 0);
+                    geogWKT = Geography.STGeomFromText(geoWKTCircularString, 4326);
+                    pstmt.setGeometry(1, geomWKT);
+                    pstmt.setGeography(2, geogWKT);
+                    pstmt.setString(3, s);
+                    pstmt.setDouble(4, d);
+                    pstmt.setInt(5, i2);
 
-                pstmt.executeUpdate();
+                    pstmt.executeUpdate();
 
-                geomWKT = Geometry.STGeomFromText(geoWKTCompoundCurve, 0);
-                geogWKT = Geography.STGeomFromText(geoWKTCompoundCurve, 4326);
-                pstmt.setGeometry(1, geomWKT);
-                pstmt.setGeography(2, geogWKT);
-                pstmt.setString(3, s);
-                pstmt.setDouble(4, d);
-                pstmt.setInt(5, i2);
+                    geomWKT = Geometry.STGeomFromText(geoWKTCompoundCurve, 0);
+                    geogWKT = Geography.STGeomFromText(geoWKTCompoundCurve, 4326);
+                    pstmt.setGeometry(1, geomWKT);
+                    pstmt.setGeography(2, geogWKT);
+                    pstmt.setString(3, s);
+                    pstmt.setDouble(4, d);
+                    pstmt.setInt(5, i2);
 
-                pstmt.executeUpdate();
+                    pstmt.executeUpdate();
 
-                geomWKT = Geometry.STGeomFromText(geoWKTCurvePolygon, 0);
-                geogWKT = Geography.STGeomFromText(geoWKTCurvePolygon, 4326);
-                pstmt.setGeometry(1, geomWKT);
-                pstmt.setGeography(2, geogWKT);
-                pstmt.setString(3, s);
-                pstmt.setDouble(4, d);
-                pstmt.setInt(5, i2);
+                    geomWKT = Geometry.STGeomFromText(geoWKTCurvePolygon, 0);
+                    geogWKT = Geography.STGeomFromText(geoWKTCurvePolygon, 4326);
+                    pstmt.setGeometry(1, geomWKT);
+                    pstmt.setGeography(2, geogWKT);
+                    pstmt.setString(3, s);
+                    pstmt.setDouble(4, d);
+                    pstmt.setInt(5, i2);
 
-                pstmt.executeUpdate();
+                    pstmt.executeUpdate();
 
-                geomWKT = Geometry.STGeomFromText(geoWKTPolygon, 0);
-                geogWKT = Geography.STGeomFromText(geoWKTPolygon, 4326);
-                pstmt.setGeometry(1, geomWKT);
-                pstmt.setGeography(2, geogWKT);
-                pstmt.setString(3, s);
-                pstmt.setDouble(4, d);
-                pstmt.setInt(5, i2);
+                    geomWKT = Geometry.STGeomFromText(geoWKTPolygon, 0);
+                    geogWKT = Geography.STGeomFromText(geoWKTPolygon, 4326);
+                    pstmt.setGeometry(1, geomWKT);
+                    pstmt.setGeography(2, geogWKT);
+                    pstmt.setString(3, s);
+                    pstmt.setDouble(4, d);
+                    pstmt.setInt(5, i2);
 
-                pstmt.executeUpdate();
+                    pstmt.executeUpdate();
 
-                geomWKT = Geometry.STGeomFromText(geoWKTMultiPoint, 0);
-                geogWKT = Geography.STGeomFromText(geoWKTMultiPoint, 4326);
-                pstmt.setGeometry(1, geomWKT);
-                pstmt.setGeography(2, geogWKT);
-                pstmt.setString(3, s);
-                pstmt.setDouble(4, d);
-                pstmt.setInt(5, i2);
+                    geomWKT = Geometry.STGeomFromText(geoWKTMultiPoint, 0);
+                    geogWKT = Geography.STGeomFromText(geoWKTMultiPoint, 4326);
+                    pstmt.setGeometry(1, geomWKT);
+                    pstmt.setGeography(2, geogWKT);
+                    pstmt.setString(3, s);
+                    pstmt.setDouble(4, d);
+                    pstmt.setInt(5, i2);
 
-                pstmt.executeUpdate();
+                    pstmt.executeUpdate();
 
-                geomWKT = Geometry.STGeomFromText(geoWKTMultiLineString, 0);
-                geogWKT = Geography.STGeomFromText(geoWKTMultiLineString, 4326);
-                pstmt.setGeometry(1, geomWKT);
-                pstmt.setGeography(2, geogWKT);
-                pstmt.setString(3, s);
-                pstmt.setDouble(4, d);
-                pstmt.setInt(5, i2);
+                    geomWKT = Geometry.STGeomFromText(geoWKTMultiLineString, 0);
+                    geogWKT = Geography.STGeomFromText(geoWKTMultiLineString, 4326);
+                    pstmt.setGeometry(1, geomWKT);
+                    pstmt.setGeography(2, geogWKT);
+                    pstmt.setString(3, s);
+                    pstmt.setDouble(4, d);
+                    pstmt.setInt(5, i2);
 
-                pstmt.executeUpdate();
+                    pstmt.executeUpdate();
 
-                geomWKT = Geometry.STGeomFromText(geoWKTMultiPolygon, 0);
-                geogWKT = Geography.STGeomFromText(geoWKTMultiPolygon, 4326);
-                pstmt.setGeometry(1, geomWKT);
-                pstmt.setGeography(2, geogWKT);
-                pstmt.setString(3, s);
-                pstmt.setDouble(4, d);
-                pstmt.setInt(5, i2);
+                    geomWKT = Geometry.STGeomFromText(geoWKTMultiPolygon, 0);
+                    geogWKT = Geography.STGeomFromText(geoWKTMultiPolygon, 4326);
+                    pstmt.setGeometry(1, geomWKT);
+                    pstmt.setGeography(2, geogWKT);
+                    pstmt.setString(3, s);
+                    pstmt.setDouble(4, d);
+                    pstmt.setInt(5, i2);
 
-                pstmt.executeUpdate();
+                    pstmt.executeUpdate();
 
-                geomWKT = Geometry.STGeomFromText(geoWKTGeometryCollection, 0);
-                geogWKT = Geography.STGeomFromText(geoWKTGeometryCollection, 4326);
-                pstmt.setGeometry(1, geomWKT);
-                pstmt.setGeography(2, geogWKT);
-                pstmt.setString(3, s);
-                pstmt.setDouble(4, d);
-                pstmt.setInt(5, i2);
+                    geomWKT = Geometry.STGeomFromText(geoWKTGeometryCollection, 0);
+                    geogWKT = Geography.STGeomFromText(geoWKTGeometryCollection, 4326);
+                    pstmt.setGeometry(1, geomWKT);
+                    pstmt.setGeography(2, geogWKT);
+                    pstmt.setString(3, s);
+                    pstmt.setDouble(4, d);
+                    pstmt.setInt(5, i2);
 
-                pstmt.executeUpdate();
+                    pstmt.executeUpdate();
 
-                rs = (SQLServerResultSet) stmt.executeQuery("select * from " + spatialDatatypeTableName);
-                for (int i = 0; i < geoWKTList.size(); i++) {
-                    rs.next();
-                    assertEquals(rs.getGeometry(1).asTextZM(), geoWKTList.get(i));
-                    assertEquals(rs.getGeography(2).asTextZM(), geoWKTList.get(i));
-                    assertEquals(rs.getString(3), s);
-                    assertEquals((Double) rs.getDouble(4), d);
-                    assertEquals(rs.getInt(5), i2);
+                    try (SQLServerResultSet rs = (SQLServerResultSet) stmt.executeQuery(
+                            "select * from " + AbstractSQLGenerator.escapeIdentifier(spatialDatatypeTableName))) {
+                        for (int i = 0; i < geoWKTList.size(); i++) {
+                            rs.next();
+                            assertEquals(rs.getGeometry(1).asTextZM(), geoWKTList.get(i));
+                            assertEquals(rs.getGeography(2).asTextZM(), geoWKTList.get(i));
+                            assertEquals(rs.getString(3), s);
+                            assertEquals((Double) rs.getDouble(4), d);
+                            assertEquals(rs.getInt(5), i2);
+                        }
+                    }
                 }
             }
         }
     }
 
     @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testDecimalRounding() throws SQLException {
         beforeEachSetup();
 
@@ -747,6 +778,7 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
     }
 
     @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testParse() throws SQLException {
         beforeEachSetup();
 
@@ -755,62 +787,79 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
         Geometry geomWKT = Geometry.parse(geoWKT);
         Geography geogWKT = Geography.parse(geoWKT);
 
-        try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con
-                .prepareStatement("insert into " + geomTableName + " values (?)");) {
-            pstmt.setGeometry(1, geomWKT);
-            pstmt.execute();
+        try (Connection con = getConnection(); Statement stmt = con.createStatement()) {
 
-            rs = (SQLServerResultSet) stmt.executeQuery("select c1 from " + geomTableName);
-            rs.next();
-            assertEquals(rs.getGeometry(1).asTextZM(), geoWKT);
-            assertEquals(rs.getGeometry(1).getSrid(), 0);
+            try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con.prepareStatement(
+                    "insert into " + AbstractSQLGenerator.escapeIdentifier(geomTableName) + " values (?)");) {
+                pstmt.setGeometry(1, geomWKT);
+                pstmt.execute();
+
+                try (SQLServerResultSet rs = (SQLServerResultSet) stmt
+                        .executeQuery("select c1 from " + AbstractSQLGenerator.escapeIdentifier(geomTableName))) {
+                    rs.next();
+                    assertEquals(rs.getGeometry(1).asTextZM(), geoWKT);
+                    assertEquals(rs.getGeometry(1).getSrid(), 0);
+                }
+            }
+
+            try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con.prepareStatement(
+                    "insert into " + AbstractSQLGenerator.escapeIdentifier(geogTableName) + " values (?)");) {
+                pstmt.setGeography(1, geogWKT);
+                pstmt.execute();
+
+                try (SQLServerResultSet rs = (SQLServerResultSet) stmt
+                        .executeQuery("select c1 from " + AbstractSQLGenerator.escapeIdentifier(geogTableName))) {
+                    rs.next();
+                    assertEquals(rs.getGeography(1).asTextZM(), geoWKT);
+                    assertEquals(rs.getGeography(1).getSrid(), 4326);
+                }
+            }
         }
 
-        try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con
-                .prepareStatement("insert into " + geogTableName + " values (?)");) {
-            pstmt.setGeography(1, geogWKT);
-            pstmt.execute();
-
-            rs = (SQLServerResultSet) stmt.executeQuery("select c1 from " + geogTableName);
-            rs.next();
-            assertEquals(rs.getGeography(1).asTextZM(), geoWKT);
-            assertEquals(rs.getGeography(1).getSrid(), 4326);
-        }
     }
 
     @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testPoint() throws SQLException {
         beforeEachSetup();
 
         String geoWKT = "POINT(1 2)";
 
         Geometry geomWKT = Geometry.point(1, 2, 0);
-        Geography geogWKT = Geography.point(1, 2, 4326);
+        Geography geogWKT = Geography.point(2, 1, 4326);
 
-        try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con
-                .prepareStatement("insert into " + geomTableName + " values (?)");) {
-            pstmt.setGeometry(1, geomWKT);
-            pstmt.execute();
+        try (Connection con = getConnection(); Statement stmt = con.createStatement()) {
 
-            rs = (SQLServerResultSet) stmt.executeQuery("select c1 from " + geomTableName);
-            rs.next();
-            assertEquals(rs.getGeometry(1).asTextZM(), geoWKT);
-            assertEquals(rs.getGeometry(1).getSrid(), 0);
-        }
+            try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con.prepareStatement(
+                    "insert into " + AbstractSQLGenerator.escapeIdentifier(geomTableName) + " values (?)");) {
+                pstmt.setGeometry(1, geomWKT);
+                pstmt.execute();
 
-        try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con
-                .prepareStatement("insert into " + geogTableName + " values (?)");) {
-            pstmt.setGeography(1, geogWKT);
-            pstmt.execute();
+                try (SQLServerResultSet rs = (SQLServerResultSet) stmt
+                        .executeQuery("select c1 from " + AbstractSQLGenerator.escapeIdentifier(geomTableName))) {
+                    rs.next();
+                    assertEquals(rs.getGeometry(1).asTextZM(), geoWKT);
+                    assertEquals(rs.getGeometry(1).getSrid(), 0);
+                }
+            }
 
-            rs = (SQLServerResultSet) stmt.executeQuery("select c1 from " + geogTableName);
-            rs.next();
-            assertEquals(rs.getGeography(1).asTextZM(), geoWKT);
-            assertEquals(rs.getGeography(1).getSrid(), 4326);
+            try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con.prepareStatement(
+                    "insert into " + AbstractSQLGenerator.escapeIdentifier(geogTableName) + " values (?)");) {
+                pstmt.setGeography(1, geogWKT);
+                pstmt.execute();
+
+                try (SQLServerResultSet rs = (SQLServerResultSet) stmt
+                        .executeQuery("select c1 from " + AbstractSQLGenerator.escapeIdentifier(geogTableName))) {
+                    rs.next();
+                    assertEquals(rs.getGeography(1).asTextZM(), geoWKT);
+                    assertEquals(rs.getGeography(1).getSrid(), 4326);
+                }
+            }
         }
     }
 
     @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testSTAsText() throws SQLException {
         beforeEachSetup();
 
@@ -820,28 +869,36 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
         Geometry geomWKT = Geometry.STGeomFromText(geoWKT, 0);
         Geography geogWKT = Geography.STGeomFromText(geoWKT, 4326);
 
-        try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con
-                .prepareStatement("insert into " + geomTableName + " values (?)");) {
-            pstmt.setGeometry(1, geomWKT);
-            pstmt.execute();
+        try (Connection con = getConnection(); Statement stmt = con.createStatement()) {
 
-            rs = (SQLServerResultSet) stmt.executeQuery("select c1 from " + geomTableName);
-            rs.next();
-            assertEquals(rs.getGeometry(1).STAsText(), geoWKTSS);
-        }
+            try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con.prepareStatement(
+                    "insert into " + AbstractSQLGenerator.escapeIdentifier(geomTableName) + " values (?)");) {
+                pstmt.setGeometry(1, geomWKT);
+                pstmt.execute();
 
-        try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con
-                .prepareStatement("insert into " + geogTableName + " values (?)");) {
-            pstmt.setGeography(1, geogWKT);
-            pstmt.execute();
+                try (SQLServerResultSet rs = (SQLServerResultSet) stmt
+                        .executeQuery("select c1 from " + AbstractSQLGenerator.escapeIdentifier(geomTableName))) {
+                    rs.next();
+                    assertEquals(rs.getGeometry(1).STAsText(), geoWKTSS);
+                }
+            }
 
-            rs = (SQLServerResultSet) stmt.executeQuery("select c1 from " + geogTableName);
-            rs.next();
-            assertEquals(rs.getGeography(1).STAsText(), geoWKTSS);
+            try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con.prepareStatement(
+                    "insert into " + AbstractSQLGenerator.escapeIdentifier(geogTableName) + " values (?)");) {
+                pstmt.setGeography(1, geogWKT);
+                pstmt.execute();
+
+                try (SQLServerResultSet rs = (SQLServerResultSet) stmt
+                        .executeQuery("select c1 from " + AbstractSQLGenerator.escapeIdentifier(geogTableName))) {
+                    rs.next();
+                    assertEquals(rs.getGeography(1).STAsText(), geoWKTSS);
+                }
+            }
         }
     }
 
     @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testSTAsBinary() throws SQLException {
         beforeEachSetup();
 
@@ -864,11 +921,14 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
         assertEquals(geogWKB, geogWKB2);
     }
 
+    @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testCheckGeomMetaData() throws SQLException {
         beforeEachSetup();
 
-        try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) connection
-                .prepareStatement("INSERT INTO " + geomTableName + " (c1) VALUES (?)");) {
+        try (Connection con = getConnection(); Statement stmt = con.createStatement();
+                SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) connection.prepareStatement(
+                        "INSERT INTO " + AbstractSQLGenerator.escapeIdentifier(geomTableName) + " (c1) VALUES (?)")) {
             ParameterMetaData paramMetaData = pstmt.getParameterMetaData();
             Geometry g = Geometry.STGeomFromText("POINT (1 2 3 4)", 0);
             pstmt.setGeometry(1, g);
@@ -878,18 +938,22 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
             String sqlTypeName = paramMetaData.getParameterTypeName(1);
             assertEquals(sqlType, -157);
             assertEquals(sqlTypeName, "geometry");
-            SQLServerResultSet rs = (SQLServerResultSet) stmt.executeQuery("select * from " + geomTableName);
-            ResultSetMetaData rsmd = rs.getMetaData();
-            assertEquals(rsmd.getColumnType(1), -157);
+            try (SQLServerResultSet rs = (SQLServerResultSet) stmt
+                    .executeQuery("select * from " + AbstractSQLGenerator.escapeIdentifier(geomTableName))) {
+                ResultSetMetaData rsmd = rs.getMetaData();
+                assertEquals(rsmd.getColumnType(1), -157);
+            }
         }
     }
 
     @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testCheckGeogMetaData() throws SQLException {
         beforeEachSetup();
 
-        try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) connection
-                .prepareStatement("INSERT INTO " + geogTableName + " (c1) VALUES (?)");) {
+        try (Connection con = getConnection(); Statement stmt = con.createStatement();
+                SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) connection.prepareStatement(
+                        "INSERT INTO " + AbstractSQLGenerator.escapeIdentifier(geogTableName) + " (c1) VALUES (?)")) {
             ParameterMetaData paramMetaData = pstmt.getParameterMetaData();
             Geography g = Geography.STGeomFromText("POINT (1 2 3 4)", 4326);
             pstmt.setGeography(1, g);
@@ -899,9 +963,11 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
             String sqlTypeName = paramMetaData.getParameterTypeName(1);
             assertEquals(sqlType, -158);
             assertEquals(sqlTypeName, "geography");
-            SQLServerResultSet rs = (SQLServerResultSet) stmt.executeQuery("select * from " + geogTableName);
-            ResultSetMetaData rsmd = rs.getMetaData();
-            assertEquals(rsmd.getColumnType(1), -158);
+            try (SQLServerResultSet rs = (SQLServerResultSet) stmt
+                    .executeQuery("select * from " + AbstractSQLGenerator.escapeIdentifier(geogTableName))) {
+                ResultSetMetaData rsmd = rs.getMetaData();
+                assertEquals(rsmd.getColumnType(1), -158);
+            }
         }
     }
 
@@ -917,11 +983,12 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
 
         x = geog.getLatitude();
         y = geog.getLongitude();
-        assertEquals(x, 1);
-        assertEquals(y, 2);
+        assertEquals(x, 2);
+        assertEquals(y, 1);
     }
 
     @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testNull() throws SQLException {
         if (isDenaliOrLater) {
             beforeEachSetupSpatialDatatype();
@@ -949,52 +1016,108 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
             Geometry geomWKT;
             Geography geogWKT;
 
-            try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con
-                    .prepareStatement("insert into " + spatialDatatypeTableName + " values (?, ?, ?, ?, ?)");) {
-                geomWKT = Geometry.STGeomFromText(geoWKTPoint, 0);
-                geogWKT = Geography.STGeomFromText(geoWKTPoint, 4326);
+            try (Connection con = getConnection(); Statement stmt = con.createStatement()) {
+
+                try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con.prepareStatement(
+                        "insert into " + AbstractSQLGenerator.escapeIdentifier(spatialDatatypeTableName)
+                                + " values (?, ?, ?, ?, ?)");) {
+                    geomWKT = Geometry.STGeomFromText(geoWKTPoint, 0);
+                    geogWKT = Geography.STGeomFromText(geoWKTPoint, 4326);
+                    pstmt.setGeometry(1, geomWKT);
+                    pstmt.setGeography(2, geogWKT);
+                    pstmt.setString(3, s);
+                    pstmt.setDouble(4, d);
+                    pstmt.setInt(5, i2);
+
+                    pstmt.executeUpdate();
+
+                    geomWKT = Geometry.STGeomFromText(geoWKTLineString, 0);
+                    geogWKT = Geography.STGeomFromText(geoWKTLineString, 4326);
+                    pstmt.setGeometry(1, geomWKT);
+                    pstmt.setGeography(2, geogWKT);
+                    pstmt.setString(3, s);
+                    pstmt.setDouble(4, d);
+                    pstmt.setInt(5, i2);
+
+                    pstmt.executeUpdate();
+
+                    try (SQLServerResultSet rs = (SQLServerResultSet) stmt.executeQuery(
+                            "select * from " + AbstractSQLGenerator.escapeIdentifier(spatialDatatypeTableName))) {
+                        for (int i = 0; i < geoWKTList.size(); i++) {
+                            rs.next();
+                            assertEquals(rs.getGeometry(1).asTextZM(), geoWKTListExpected.get(i));
+                            assertEquals(rs.getGeography(2).asTextZM(), geoWKTListExpected.get(i));
+                            assertEquals(rs.getString(3), s);
+                            assertEquals((Double) rs.getDouble(4), d);
+                            assertEquals(rs.getInt(5), i2);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    @Tag(Constants.xAzureSQLDW)
+    public void testWrongtype() throws SQLException {
+        beforeEachSetup();
+
+        Geometry geomWKT = Geometry.point(1, 2, 0);
+        Geography geogWKT = Geography.point(2, 1, 4326);
+
+        try (Connection con = getConnection(); Statement stmt = con.createStatement()) {
+
+            try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con.prepareStatement(
+                    "insert into " + AbstractSQLGenerator.escapeIdentifier(geomTableName) + " values (?)");) {
                 pstmt.setGeometry(1, geomWKT);
-                pstmt.setGeography(2, geogWKT);
-                pstmt.setString(3, s);
-                pstmt.setDouble(4, d);
-                pstmt.setInt(5, i2);
+                pstmt.execute();
 
-                pstmt.executeUpdate();
-
-                geomWKT = Geometry.STGeomFromText(geoWKTLineString, 0);
-                geogWKT = Geography.STGeomFromText(geoWKTLineString, 4326);
-                pstmt.setGeometry(1, geomWKT);
-                pstmt.setGeography(2, geogWKT);
-                pstmt.setString(3, s);
-                pstmt.setDouble(4, d);
-                pstmt.setInt(5, i2);
-
-                pstmt.executeUpdate();
-
-                rs = (SQLServerResultSet) stmt.executeQuery("select * from " + spatialDatatypeTableName);
-                for (int i = 0; i < geoWKTList.size(); i++) {
+                try {
+                    SQLServerResultSet rs = (SQLServerResultSet) stmt
+                            .executeQuery("select * from " + AbstractSQLGenerator.escapeIdentifier(geomTableName));
                     rs.next();
-                    assertEquals(rs.getGeometry(1).asTextZM(), geoWKTListExpected.get(i));
-                    assertEquals(rs.getGeography(2).asTextZM(), geoWKTListExpected.get(i));
-                    assertEquals(rs.getString(3), s);
-                    assertEquals((Double) rs.getDouble(4), d);
-                    assertEquals(rs.getInt(5), i2);
+                    rs.getGeography(1); // should fail
+                    fail();
+                } catch (SQLServerException e) {
+                    assertEquals(e.getMessage(), "The conversion from GEOMETRY to GEOGRAPHY is unsupported.");
+                }
+            }
+
+            try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con.prepareStatement(
+                    "insert into " + AbstractSQLGenerator.escapeIdentifier(geogTableName) + " values (?)");) {
+                pstmt.setGeography(1, geogWKT);
+                pstmt.execute();
+
+                try {
+                    SQLServerResultSet rs = (SQLServerResultSet) stmt
+                            .executeQuery("select * from " + AbstractSQLGenerator.escapeIdentifier(geogTableName));
+                    rs.next();
+                    rs.getGeometry(1); // should fail
+                    fail();
+                } catch (SQLServerException e) {
+                    assertEquals(e.getMessage(), "The conversion from GEOGRAPHY to GEOMETRY is unsupported.");
                 }
             }
         }
     }
 
     private void beforeEachSetup() throws SQLException {
-        Utils.dropTableIfExists(geomTableName, stmt);
-        Utils.dropTableIfExists(geogTableName, stmt);
-        stmt.executeUpdate("Create table " + geomTableName + " (c1 geometry)");
-        stmt.executeUpdate("Create table " + geogTableName + " (c1 geography)");
+        try (Statement stmt = connection.createStatement()) {
+            TestUtils.dropTableIfExists(AbstractSQLGenerator.escapeIdentifier(geomTableName), stmt);
+            TestUtils.dropTableIfExists(AbstractSQLGenerator.escapeIdentifier(geogTableName), stmt);
+            stmt.executeUpdate(
+                    "Create table " + AbstractSQLGenerator.escapeIdentifier(geomTableName) + " (c1 geometry)");
+            stmt.executeUpdate(
+                    "Create table " + AbstractSQLGenerator.escapeIdentifier(geogTableName) + " (c1 geography)");
+        }
     }
 
     private void beforeEachSetupSpatialDatatype() throws SQLException {
-        Utils.dropTableIfExists(spatialDatatypeTableName, stmt);
-        stmt.executeUpdate("Create table " + spatialDatatypeTableName + " (c1 geometry," + "c2 geography,"
-                + "c3 nvarchar(512)," + "c4 decimal(28,4)," + "c5 int)");
+        try (Statement stmt = connection.createStatement()) {
+            TestUtils.dropTableIfExists(AbstractSQLGenerator.escapeIdentifier(spatialDatatypeTableName), stmt);
+            stmt.executeUpdate("Create table " + AbstractSQLGenerator.escapeIdentifier(spatialDatatypeTableName)
+                    + " (c1 geometry," + "c2 geography," + "c3 nvarchar(512)," + "c4 decimal(28,4)," + "c5 int)");
+        }
     }
 
     private void testWkt(String geoWKT) throws SQLException {
@@ -1005,24 +1128,31 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
         Geometry geomWKT = Geometry.STGeomFromText(geoWKT, 0);
         Geography geogWKT = Geography.STGeomFromText(geoWKT, 4326);
 
-        try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con
-                .prepareStatement("insert into " + geomTableName + " values (?)");) {
-            pstmt.setGeometry(1, geomWKT);
-            pstmt.execute();
+        try (Connection con = getConnection(); Statement stmt = con.createStatement()) {
 
-            rs = (SQLServerResultSet) stmt.executeQuery("select c1 from " + geomTableName);
-            rs.next();
-            assertEquals(rs.getGeometry(1).asTextZM(), geoWKTSS);
-        }
+            try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con.prepareStatement(
+                    "insert into " + AbstractSQLGenerator.escapeIdentifier(geomTableName) + " values (?)");) {
+                pstmt.setGeometry(1, geomWKT);
+                pstmt.execute();
 
-        try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con
-                .prepareStatement("insert into " + geogTableName + " values (?)");) {
-            pstmt.setGeography(1, geogWKT);
-            pstmt.execute();
+                try (SQLServerResultSet rs = (SQLServerResultSet) stmt
+                        .executeQuery("select c1 from " + AbstractSQLGenerator.escapeIdentifier(geomTableName))) {
+                    rs.next();
+                    assertEquals(rs.getGeometry(1).asTextZM(), geoWKTSS);
+                }
+            }
 
-            rs = (SQLServerResultSet) stmt.executeQuery("select c1 from " + geogTableName);
-            rs.next();
-            assertEquals(rs.getGeography(1).asTextZM(), geoWKTSS);
+            try (SQLServerPreparedStatement pstmt = (SQLServerPreparedStatement) con.prepareStatement(
+                    "insert into " + AbstractSQLGenerator.escapeIdentifier(geogTableName) + " values (?)");) {
+                pstmt.setGeography(1, geogWKT);
+                pstmt.execute();
+
+                try (SQLServerResultSet rs = (SQLServerResultSet) stmt
+                        .executeQuery("select c1 from " + AbstractSQLGenerator.escapeIdentifier(geogTableName))) {
+                    rs.next();
+                    assertEquals(rs.getGeography(1).asTextZM(), geoWKTSS);
+                }
+            }
         }
     }
 
@@ -1045,22 +1175,20 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
      */
     @BeforeAll
     public static void setupHere() throws SQLException, SecurityException, IOException {
-        con = (SQLServerConnection) DriverManager.getConnection(connectionString);
-        stmt = con.createStatement();
+        geomTableName = RandomUtil.getIdentifier("geometryTestTable");
+        geogTableName = RandomUtil.getIdentifier("geographyTestTable");
+        spatialDatatypeTableName = RandomUtil.getIdentifier("spatialDatatypeTestTable");
 
-        rs = (SQLServerResultSet) stmt.executeQuery("select SERVERPROPERTY ( 'ProductVersion' )");
-
-        rs.next();
-
-        try {
+        try (Connection con = getConnection(); Statement stmt = con.createStatement();
+                SQLServerResultSet rs = (SQLServerResultSet) stmt
+                        .executeQuery("select SERVERPROPERTY ( 'ProductVersion' )")) {
+            rs.next();
             int version = Integer.parseInt(rs.getString(1).substring(0, 2));
 
             // if major version is greater than or equal to 11, it's SQL Server 2012 or above.
             if (version >= 11) {
                 isDenaliOrLater = true;
             }
-        } catch (Exception e) {
-            // Do nothing.
         }
     }
 
@@ -1071,23 +1199,10 @@ public class SQLServerSpatialDatatypeTest extends AbstractTest {
      */
     @AfterAll
     public static void afterAll() throws SQLException {
-        Utils.dropTableIfExists(geomTableName, stmt);
-        Utils.dropTableIfExists(geogTableName, stmt);
-
-        if (null != stmt) {
-            stmt.close();
-        }
-
-        if (null != pstmt) {
-            pstmt.close();
-        }
-
-        if (null != rs) {
-            rs.close();
-        }
-
-        if (null != con) {
-            con.close();
+        try (Statement stmt = connection.createStatement()) {
+            TestUtils.dropTableIfExists(AbstractSQLGenerator.escapeIdentifier(geomTableName), stmt);
+            TestUtils.dropTableIfExists(AbstractSQLGenerator.escapeIdentifier(geogTableName), stmt);
+            TestUtils.dropTableIfExists(AbstractSQLGenerator.escapeIdentifier(spatialDatatypeTableName), stmt);
         }
     }
 }
