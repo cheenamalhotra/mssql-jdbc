@@ -10,13 +10,12 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import java.math.BigDecimal;
 import java.sql.Date;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.SQLTimeoutException;
 
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.platform.runner.JUnitPlatform;
 import org.junit.runner.RunWith;
@@ -33,10 +32,13 @@ import com.microsoft.sqlserver.jdbc.TestResource;
 import com.microsoft.sqlserver.jdbc.TestUtils;
 import com.microsoft.sqlserver.testframework.AbstractSQLGenerator;
 import com.microsoft.sqlserver.testframework.AbstractTest;
+import com.microsoft.sqlserver.testframework.Constants;
+import com.microsoft.sqlserver.testframework.PrepUtil;
 import com.microsoft.sqlserver.testframework.sqlType.SqlDate;
 
 
 @RunWith(JUnitPlatform.class)
+@Tag(Constants.xAzureSQLDW)
 public class TVPWithSqlVariantTest extends AbstractTest {
 
     private static SQLServerConnection conn = null;
@@ -322,7 +324,7 @@ public class TVPWithSqlVariantTest extends AbstractTest {
     }
 
     /**
-     * Test ith datetime
+     * Test with datetime
      * 
      * @throws SQLException
      * @throws SQLTimeoutException
@@ -353,8 +355,10 @@ public class TVPWithSqlVariantTest extends AbstractTest {
      * 
      * @throws SQLException
      * @throws SQLTimeoutException
+     *         https://msdn.microsoft.com/en-ca/library/dd303302.aspx?f=255&MSPPError=-2147217396 Data types cannot be
+     *         NULL when inside a sql_variant
      */
-    @Test // TODO We need to check this later. Right now sending null with TVP is not supported
+    @Test
     public void testNull() throws SQLException {
         tvp = new SQLServerDataTable();
         tvp.addColumnMetadata("c1", microsoft.sql.Types.SQL_VARIANT);
@@ -464,8 +468,7 @@ public class TVPWithSqlVariantTest extends AbstractTest {
 
     @BeforeEach
     public void testSetup() throws SQLException {
-        conn = (SQLServerConnection) DriverManager
-                .getConnection(connectionString + ";sendStringParametersAsUnicode=true;");
+        conn = (SQLServerConnection) PrepUtil.getConnection(connectionString + ";sendStringParametersAsUnicode=true;");
         stmt = (SQLServerStatement) conn.createStatement();
 
         TestUtils.dropProcedureIfExists(AbstractSQLGenerator.escapeIdentifier(procedureName), stmt);
@@ -507,19 +510,9 @@ public class TVPWithSqlVariantTest extends AbstractTest {
         TestUtils.dropProcedureIfExists(AbstractSQLGenerator.escapeIdentifier(procedureName), stmt);
         TestUtils.dropTableIfExists(AbstractSQLGenerator.escapeIdentifier(destTable), stmt);
         dropTVPS();
-    }
-
-    /**
-     * drop the tables
-     * 
-     * @throws SQLException
-     */
-    @AfterAll
-    public static void afterAll() throws SQLException {
         if (null != stmt) {
             stmt.close();
         }
-
         if (null != conn) {
             conn.close();
         }

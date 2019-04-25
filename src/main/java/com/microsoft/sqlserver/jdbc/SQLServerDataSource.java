@@ -866,6 +866,17 @@ public class SQLServerDataSource
                 SQLServerDriverStringProperty.JAAS_CONFIG_NAME.getDefaultValue());
     }
 
+    @Override
+    public void setMSIClientId(String msiClientId) {
+        setStringProperty(connectionProps, SQLServerDriverStringProperty.MSI_CLIENT_ID.toString(), msiClientId);
+    }
+
+    @Override
+    public String getMSIClientId() {
+        return getStringProperty(connectionProps, SQLServerDriverStringProperty.MSI_CLIENT_ID.toString(),
+                SQLServerDriverStringProperty.MSI_CLIENT_ID.getDefaultValue());
+    }
+
     /**
      * Sets a property string value.
      * 
@@ -1090,7 +1101,7 @@ public class SQLServerDataSource
             if (propertyName.equals(SQLServerDriverStringProperty.TRUST_STORE_PASSWORD.toString())) {
                 // The property set and the variable set at the same time is not
                 // possible
-                assert trustStorePasswordStripped == false;
+                assert !trustStorePasswordStripped;
                 ref.add(new StringRefAddr("trustStorePasswordStripped", "true"));
             } else {
                 // do not add passwords to the collection. we have normal

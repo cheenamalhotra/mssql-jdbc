@@ -47,6 +47,11 @@ import com.microsoft.sqlserver.jdbc.SQLServerConnection.PreparedStatementHandle;
  * interfaces javadoc for those details.
  */
 public class SQLServerPreparedStatement extends SQLServerStatement implements ISQLServerPreparedStatement {
+    /**
+     * Always update serialVersionUID when prompted.
+     */
+    private static final long serialVersionUID = -6292257029445685221L;
+
     /** Flag to indicate that it is an internal query to retrieve encryption metadata. */
     boolean isInternalEncryptionQuery = false;
 
@@ -269,6 +274,11 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
                     loggerExternal.finer(this + ": Closing PreparedHandle:" + handleToClose);
 
                 final class PreparedHandleClose extends UninterruptableTDSCommand {
+                    /**
+                     * Always update serialVersionUID when prompted.
+                     */
+                    private static final long serialVersionUID = -8944096664249990764L;
+
                     PreparedHandleClose() {
                         super("closePreparedHandle");
                     }
@@ -427,7 +437,7 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
     @Override
     public java.sql.ResultSet executeQuery() throws SQLServerException, SQLTimeoutException {
         loggerExternal.entering(getClassNameLogging(), "executeQuery");
-        if (loggerExternal.isLoggable(Level.FINER) && Util.IsActivityTraceOn()) {
+        if (loggerExternal.isLoggable(Level.FINER) && Util.isActivityTraceOn()) {
             loggerExternal.finer(toString() + " ActivityId: " + ActivityCorrelator.getNext().toString());
         }
         checkClosed();
@@ -452,7 +462,7 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
     @Override
     public int executeUpdate() throws SQLServerException, SQLTimeoutException {
         loggerExternal.entering(getClassNameLogging(), "executeUpdate");
-        if (loggerExternal.isLoggable(Level.FINER) && Util.IsActivityTraceOn()) {
+        if (loggerExternal.isLoggable(Level.FINER) && Util.isActivityTraceOn()) {
             loggerExternal.finer(toString() + " ActivityId: " + ActivityCorrelator.getNext().toString());
         }
 
@@ -474,7 +484,7 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
     public long executeLargeUpdate() throws SQLServerException, SQLTimeoutException {
 
         loggerExternal.entering(getClassNameLogging(), "executeLargeUpdate");
-        if (loggerExternal.isLoggable(Level.FINER) && Util.IsActivityTraceOn()) {
+        if (loggerExternal.isLoggable(Level.FINER) && Util.isActivityTraceOn()) {
             loggerExternal.finer(toString() + " ActivityId: " + ActivityCorrelator.getNext().toString());
         }
         checkClosed();
@@ -486,7 +496,7 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
     @Override
     public boolean execute() throws SQLServerException, SQLTimeoutException {
         loggerExternal.entering(getClassNameLogging(), "execute");
-        if (loggerExternal.isLoggable(Level.FINER) && Util.IsActivityTraceOn()) {
+        if (loggerExternal.isLoggable(Level.FINER) && Util.isActivityTraceOn()) {
             loggerExternal.finer(toString() + " ActivityId: " + ActivityCorrelator.getNext().toString());
         }
         checkClosed();
@@ -496,6 +506,10 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
     }
 
     private final class PrepStmtExecCmd extends TDSCommand {
+        /**
+         * Always update serialVersionUID when prompted.
+         */
+        private static final long serialVersionUID = 4098801171124750861L;
         private final SQLServerPreparedStatement stmt;
 
         PrepStmtExecCmd(SQLServerPreparedStatement stmt, int executeMethod) {
@@ -530,7 +544,7 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
         // Note: similar logic in SQLServerStatement.doExecuteStatement
         setMaxRowsAndMaxFieldSize();
 
-        if (loggerExternal.isLoggable(Level.FINER) && Util.IsActivityTraceOn()) {
+        if (loggerExternal.isLoggable(Level.FINER) && Util.isActivityTraceOn()) {
             loggerExternal.finer(toString() + " ActivityId: " + ActivityCorrelator.getNext().toString());
         }
 
@@ -925,7 +939,7 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
                     // Decrypt the symmetric key.(This will also validate and throw if needed).
                     SQLServerSecurityUtility.decryptSymmetricKey(params[paramIndex].cryptoMeta, connection);
                 } else {
-                    if (true == params[paramIndex].getForceEncryption()) {
+                    if (params[paramIndex].getForceEncryption()) {
                         MessageFormat form = new MessageFormat(
                                 SQLServerException.getErrString("R_ForceEncryptionTrue_HonorAETrue_UnencryptedColumn"));
                         Object[] msgArgs = {userSQL, paramIndex + 1};
@@ -1081,7 +1095,7 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
             internalStmt = (SQLServerStatement) connection.createStatement();
             emptyResultSet = internalStmt.executeQueryInternal("set fmtonly on " + fmtSQL + "\nset fmtonly off");
         } catch (SQLException sqle) {
-            if (false == sqle.getMessage().equals(SQLServerException.getErrString("R_noResultset"))) {
+            if (!sqle.getMessage().equals(SQLServerException.getErrString("R_noResultset"))) {
                 // if the error is not no resultset then throw a processings error.
                 MessageFormat form = new MessageFormat(SQLServerException.getErrString("R_processingError"));
                 Object[] msgArgs = {sqle.getMessage()};
@@ -1924,7 +1938,7 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
     @Override
     public int[] executeBatch() throws SQLServerException, BatchUpdateException, SQLTimeoutException {
         loggerExternal.entering(getClassNameLogging(), "executeBatch");
-        if (loggerExternal.isLoggable(Level.FINER) && Util.IsActivityTraceOn()) {
+        if (loggerExternal.isLoggable(Level.FINER) && Util.isActivityTraceOn()) {
             loggerExternal.finer(toString() + " ActivityId: " + ActivityCorrelator.getNext().toString());
         }
         checkClosed();
@@ -1936,6 +1950,12 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
 
         try {
             if (this.useBulkCopyForBatchInsert && connection.isAzureDW() && isInsert(localUserSQL)) {
+                if (null == batchParamValues) {
+                    updateCounts = new int[0];
+                    loggerExternal.exiting(getClassNameLogging(), "executeBatch", updateCounts);
+                    return updateCounts;
+                }
+
                 // From the JDBC spec, section 9.1.4 - Making Batch Updates:
                 // The CallableStatement.executeBatch method (inherited from PreparedStatement) will
                 // throw a BatchUpdateException if the stored procedure returns anything other than an
@@ -1955,12 +1975,6 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
                     }
                 }
 
-                if (batchParamValues == null) {
-                    updateCounts = new int[0];
-                    loggerExternal.exiting(getClassNameLogging(), "executeBatch", updateCounts);
-                    return updateCounts;
-                }
-
                 String tableName = parseUserSQLForTableNameDW(false, false, false, false);
                 ArrayList<String> columnList = parseUserSQLForColumnListDW();
                 ArrayList<String> valueList = parseUserSQLForValueListDW(false);
@@ -1972,7 +1986,7 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
                         stmtColumnEncriptionSetting);
                         SQLServerResultSet rs = stmt
                                 .executeQueryInternal("sp_executesql N'SET FMTONLY ON SELECT * FROM "
-                                        + Util.escapeSingleQuotes(tableName) + " '");) {
+                                        + Util.escapeSingleQuotes(tableName) + " '")) {
                     if (null != columnList && columnList.size() > 0) {
                         if (columnList.size() != valueList.size()) {
                             throw new IllegalArgumentException(
@@ -2003,6 +2017,9 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
                     }
 
                     SQLServerBulkCopy bcOperation = new SQLServerBulkCopy(connection);
+                    SQLServerBulkCopyOptions option = new SQLServerBulkCopyOptions();
+                    option.setBulkCopyTimeout(queryTimeout);
+                    bcOperation.setBulkCopyOptions(option);
                     bcOperation.setDestinationTableName(tableName);
                     bcOperation.setStmtColumnEncriptionSetting(this.getStmtColumnEncriptionSetting());
                     bcOperation.setDestinationTableMetadata(rs);
@@ -2029,7 +2046,7 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
             }
         }
 
-        if (batchParamValues == null)
+        if (null == batchParamValues)
             updateCounts = new int[0];
         else
             try {
@@ -2078,7 +2095,7 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
     @Override
     public long[] executeLargeBatch() throws SQLServerException, BatchUpdateException, SQLTimeoutException {
         loggerExternal.entering(getClassNameLogging(), "executeLargeBatch");
-        if (loggerExternal.isLoggable(Level.FINER) && Util.IsActivityTraceOn()) {
+        if (loggerExternal.isLoggable(Level.FINER) && Util.isActivityTraceOn()) {
             loggerExternal.finer(toString() + " ActivityId: " + ActivityCorrelator.getNext().toString());
         }
         checkClosed();
@@ -2090,6 +2107,12 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
 
         try {
             if (this.useBulkCopyForBatchInsert && connection.isAzureDW() && isInsert(localUserSQL)) {
+                if (null == batchParamValues) {
+                    updateCounts = new long[0];
+                    loggerExternal.exiting(getClassNameLogging(), "executeLargeBatch", updateCounts);
+                    return updateCounts;
+                }
+
                 // From the JDBC spec, section 9.1.4 - Making Batch Updates:
                 // The CallableStatement.executeBatch method (inherited from PreparedStatement) will
                 // throw a BatchUpdateException if the stored procedure returns anything other than an
@@ -2109,12 +2132,6 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
                     }
                 }
 
-                if (batchParamValues == null) {
-                    updateCounts = new long[0];
-                    loggerExternal.exiting(getClassNameLogging(), "executeLargeBatch", updateCounts);
-                    return updateCounts;
-                }
-
                 String tableName = parseUserSQLForTableNameDW(false, false, false, false);
                 ArrayList<String> columnList = parseUserSQLForColumnListDW();
                 ArrayList<String> valueList = parseUserSQLForValueListDW(false);
@@ -2126,7 +2143,7 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
                         stmtColumnEncriptionSetting);
                         SQLServerResultSet rs = stmt
                                 .executeQueryInternal("sp_executesql N'SET FMTONLY ON SELECT * FROM "
-                                        + Util.escapeSingleQuotes(tableName) + " '");) {
+                                        + Util.escapeSingleQuotes(tableName) + " '")) {
                     if (null != columnList && columnList.size() > 0) {
                         if (columnList.size() != valueList.size()) {
                             throw new IllegalArgumentException(
@@ -2157,6 +2174,9 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
                     }
 
                     SQLServerBulkCopy bcOperation = new SQLServerBulkCopy(connection);
+                    SQLServerBulkCopyOptions option = new SQLServerBulkCopyOptions();
+                    option.setBulkCopyTimeout(queryTimeout);
+                    bcOperation.setBulkCopyOptions(option);
                     bcOperation.setDestinationTableName(tableName);
                     bcOperation.setStmtColumnEncriptionSetting(this.getStmtColumnEncriptionSetting());
                     bcOperation.setDestinationTableMetadata(rs);
@@ -2183,7 +2203,7 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
             }
         }
 
-        if (batchParamValues == null)
+        if (null == batchParamValues)
             updateCounts = new long[0];
         else
             try {
@@ -2228,8 +2248,19 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
 
     private void checkValidColumns(TypeInfo ti) throws SQLServerException {
         int jdbctype = ti.getSSType().getJDBCType().getIntValue();
-        // currently, we do not support: geometry, geography, datetime and smalldatetime
+        String typeName;
+        MessageFormat form;
         switch (jdbctype) {
+            case microsoft.sql.Types.MONEY:
+            case microsoft.sql.Types.SMALLMONEY:
+            case java.sql.Types.DATE:
+            case microsoft.sql.Types.DATETIME:
+            case microsoft.sql.Types.DATETIMEOFFSET:
+            case microsoft.sql.Types.SMALLDATETIME:
+            case java.sql.Types.TIME:
+                typeName = ti.getSSTypeName();
+                form = new MessageFormat(SQLServerException.getErrString("R_BulkTypeNotSupportedDW"));
+                throw new IllegalArgumentException(form.format(new Object[] {typeName}));
             case java.sql.Types.INTEGER:
             case java.sql.Types.SMALLINT:
             case java.sql.Types.BIGINT:
@@ -2237,8 +2268,6 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
             case java.sql.Types.TINYINT:
             case java.sql.Types.DOUBLE:
             case java.sql.Types.REAL:
-            case microsoft.sql.Types.MONEY:
-            case microsoft.sql.Types.SMALLMONEY:
             case java.sql.Types.DECIMAL:
             case java.sql.Types.NUMERIC:
             case microsoft.sql.Types.GUID:
@@ -2252,21 +2281,18 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
             case java.sql.Types.LONGVARBINARY:
             case java.sql.Types.VARBINARY:
                 // Spatial datatypes fall under Varbinary, check if the UDT is geometry/geography.
-                String typeName = ti.getSSTypeName();
+                typeName = ti.getSSTypeName();
                 if (typeName.equalsIgnoreCase("geometry") || typeName.equalsIgnoreCase("geography")) {
-                    MessageFormat form = new MessageFormat(SQLServerException.getErrString("R_BulkTypeNotSupported"));
+                    form = new MessageFormat(SQLServerException.getErrString("R_BulkTypeNotSupported"));
                     throw new IllegalArgumentException(form.format(new Object[] {typeName}));
                 }
             case java.sql.Types.TIMESTAMP:
-            case java.sql.Types.DATE:
-            case java.sql.Types.TIME:
             case 2013: // java.sql.Types.TIME_WITH_TIMEZONE
             case 2014: // java.sql.Types.TIMESTAMP_WITH_TIMEZONE
-            case microsoft.sql.Types.DATETIMEOFFSET:
             case microsoft.sql.Types.SQL_VARIANT:
                 return;
             default: {
-                MessageFormat form = new MessageFormat(SQLServerException.getErrString("R_BulkTypeNotSupported"));
+                form = new MessageFormat(SQLServerException.getErrString("R_BulkTypeNotSupported"));
                 String unsupportedDataType = JDBCType.of(jdbctype).toString();
                 throw new IllegalArgumentException(form.format(new Object[] {unsupportedDataType}));
             }
@@ -2630,6 +2656,10 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
     }
 
     private final class PrepStmtBatchExecCmd extends TDSCommand {
+        /**
+         * Always update serialVersionUID when prompted.
+         */
+        private static final long serialVersionUID = 5225705304799552318L;
         private final SQLServerPreparedStatement stmt;
         SQLServerException batchException;
         long updateCounts[];
@@ -2671,7 +2701,7 @@ public class SQLServerPreparedStatement extends SQLServerStatement implements IS
         // Make sure any previous maxRows limitation on the connection is removed.
         connection.setMaxRows(0);
 
-        if (loggerExternal.isLoggable(Level.FINER) && Util.IsActivityTraceOn()) {
+        if (loggerExternal.isLoggable(Level.FINER) && Util.isActivityTraceOn()) {
             loggerExternal.finer(toString() + " ActivityId: " + ActivityCorrelator.getNext().toString());
         }
         // Create the parameter array that we'll use for all the items in this batch.

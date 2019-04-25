@@ -50,6 +50,11 @@ import com.microsoft.sqlserver.jdbc.SQLServerConnection.CityHash128Key;
  * interfaces javadoc for those details.
  */
 public class SQLServerStatement implements ISQLServerStatement {
+    /**
+     * Always update serialVersionUID when prompted.
+     */
+    private static final long serialVersionUID = -4421134713913331507L;
+
     final static char LEFT_CURLY_BRACKET = 123;
     final static char RIGHT_CURLY_BRACKET = 125;
 
@@ -681,7 +686,7 @@ public class SQLServerStatement implements ISQLServerStatement {
     @Override
     public java.sql.ResultSet executeQuery(String sql) throws SQLServerException, SQLTimeoutException {
         loggerExternal.entering(getClassNameLogging(), "executeQuery", sql);
-        if (loggerExternal.isLoggable(Level.FINER) && Util.IsActivityTraceOn()) {
+        if (loggerExternal.isLoggable(Level.FINER) && Util.isActivityTraceOn()) {
             loggerExternal.finer(toString() + " ActivityId: " + ActivityCorrelator.getNext().toString());
         }
         checkClosed();
@@ -699,7 +704,7 @@ public class SQLServerStatement implements ISQLServerStatement {
     @Override
     public int executeUpdate(String sql) throws SQLServerException, SQLTimeoutException {
         loggerExternal.entering(getClassNameLogging(), "executeUpdate", sql);
-        if (loggerExternal.isLoggable(Level.FINER) && Util.IsActivityTraceOn()) {
+        if (loggerExternal.isLoggable(Level.FINER) && Util.isActivityTraceOn()) {
             loggerExternal.finer(toString() + " ActivityId: " + ActivityCorrelator.getNext().toString());
         }
         checkClosed();
@@ -719,7 +724,7 @@ public class SQLServerStatement implements ISQLServerStatement {
     public long executeLargeUpdate(String sql) throws SQLServerException, SQLTimeoutException {
 
         loggerExternal.entering(getClassNameLogging(), "executeLargeUpdate", sql);
-        if (loggerExternal.isLoggable(Level.FINER) && Util.IsActivityTraceOn()) {
+        if (loggerExternal.isLoggable(Level.FINER) && Util.isActivityTraceOn()) {
             loggerExternal.finer(toString() + " ActivityId: " + ActivityCorrelator.getNext().toString());
         }
         checkClosed();
@@ -732,7 +737,7 @@ public class SQLServerStatement implements ISQLServerStatement {
     @Override
     public boolean execute(String sql) throws SQLServerException, SQLTimeoutException {
         loggerExternal.entering(getClassNameLogging(), "execute", sql);
-        if (loggerExternal.isLoggable(Level.FINER) && Util.IsActivityTraceOn()) {
+        if (loggerExternal.isLoggable(Level.FINER) && Util.isActivityTraceOn()) {
             loggerExternal.finer(toString() + " ActivityId: " + ActivityCorrelator.getNext().toString());
         }
         checkClosed();
@@ -742,6 +747,10 @@ public class SQLServerStatement implements ISQLServerStatement {
     }
 
     private final class StmtExecCmd extends TDSCommand {
+        /**
+         * Always update serialVersionUID when prompted.
+         */
+        private static final long serialVersionUID = 4534132352812876292L;
         final SQLServerStatement stmt;
         final String sql;
         final int executeMethod;
@@ -825,7 +834,7 @@ public class SQLServerStatement implements ISQLServerStatement {
         // Note: similar logic in SQLServerPreparedStatement.doExecutePreparedStatement
         setMaxRowsAndMaxFieldSize();
 
-        if (loggerExternal.isLoggable(Level.FINER) && Util.IsActivityTraceOn()) {
+        if (loggerExternal.isLoggable(Level.FINER) && Util.isActivityTraceOn()) {
             loggerExternal.finer(toString() + " ActivityId: " + ActivityCorrelator.getNext().toString());
         }
         if (isCursorable(executeMethod) && isSelect(sql)) {
@@ -877,6 +886,10 @@ public class SQLServerStatement implements ISQLServerStatement {
     }
 
     private final class StmtBatchExecCmd extends TDSCommand {
+        /**
+         * Always update serialVersionUID when prompted.
+         */
+        private static final long serialVersionUID = -4621631860790243331L;
         final SQLServerStatement stmt;
 
         StmtBatchExecCmd(SQLServerStatement stmt) {
@@ -901,7 +914,7 @@ public class SQLServerStatement implements ISQLServerStatement {
         // Make sure any previous maxRows limitation on the connection is removed.
         connection.setMaxRows(0);
 
-        if (loggerExternal.isLoggable(Level.FINER) && Util.IsActivityTraceOn()) {
+        if (loggerExternal.isLoggable(Level.FINER) && Util.isActivityTraceOn()) {
             loggerExternal.finer(toString() + " ActivityId: " + ActivityCorrelator.getNext().toString());
         }
 
@@ -1012,29 +1025,28 @@ public class SQLServerStatement implements ISQLServerStatement {
      */
     static String replaceMarkerWithNull(String sql) {
         if (!sql.contains("'")) {
-            String retStr = replaceParameterWithString(sql, '?', "null");
-            return retStr;
+            return replaceParameterWithString(sql, '?', "null");
         } else {
             StringTokenizer st = new StringTokenizer(sql, "'", true);
             boolean beforeColon = true;
-            String retSql = "";
+            final StringBuilder retSql = new StringBuilder();
             while (st.hasMoreTokens()) {
                 String str = st.nextToken();
                 if (str.equals("'")) {
-                    retSql += "'";
+                    retSql.append("'");
                     beforeColon = !beforeColon;
                     continue;
                 }
                 if (beforeColon) {
                     String repStr = replaceParameterWithString(str, '?', "null");
-                    retSql += repStr;
+                    retSql.append(repStr);
                     continue;
                 } else {
-                    retSql += str;
+                    retSql.append(str);
                     continue;
                 }
             }
-            return retSql;
+            return retSql.toString();
         }
     }
 
@@ -1400,22 +1412,16 @@ public class SQLServerStatement implements ISQLServerStatement {
             }
 
             boolean onColMetaData(TDSReader tdsReader) throws SQLServerException {
-                // If we have an update count from a previous command that we haven't
-                // acknowledged because we didn't know at the time whether it was
-                // the undesired result from a trigger, we now know that it wasn't,
-                // so return it.
-                if (null != stmtDoneToken)
-                    return false;
-
-                // If we encountered an ERROR token before hitting this COLMETADATA token,
-                // without any intervening DONE token (indicating an error result), then
-                // act as if that had been the case and drop out to propagate the error
-                // up as an SQLException.
-                if (null != getDatabaseError())
-                    return false;
-
-                // Otherwise, column metadata indicates the start of a ResultSet
-                isResultSet = true;
+                /*
+                 * If we have an update count from a previous command that we haven't acknowledged because we didn't
+                 * know at the time whether it was the undesired result from a trigger, and if we did not encounter an
+                 * ERROR token before hitting this COLMETADATA token, with any intervening DONE token (does not indicate
+                 * an error result), then go ahead.
+                 */
+                if (null == stmtDoneToken && null == getDatabaseError()) {
+                    // If both conditions are true, column metadata indicates the start of a ResultSet
+                    isResultSet = true;
+                }
                 return false;
             }
 
@@ -1573,7 +1579,7 @@ public class SQLServerStatement implements ISQLServerStatement {
                     executedSqlDirectly = true;
 
                 SQLWarning warning = new SQLWarning(
-                        infoToken.msg.getMessage(), SQLServerException.generateStateCode(connection,
+                        infoToken.msg.getErrorMessage(), SQLServerException.generateStateCode(connection,
                                 infoToken.msg.getErrorNumber(), infoToken.msg.getErrorState()),
                         infoToken.msg.getErrorNumber());
 
@@ -1600,21 +1606,26 @@ public class SQLServerStatement implements ISQLServerStatement {
             clearLastResult();
         }
 
-        // If there are no more results, then we're done.
-        // All we had to do was to close out the previous results.
+        // If there are no more results, then we're done. All we had to do was to close out the previous results.
         if (!moreResults) {
             return false;
         }
 
         // Figure out the next result.
         NextResult nextResult = new NextResult();
-        TDSParser.parse(resultsReader(), nextResult);
+
+        // Signal to not read all token other than TDS_MSG if reading only warnings
+        TDSParser.parse(resultsReader(), nextResult, !clearFlag);
 
         // Check for errors first.
         if (null != nextResult.getDatabaseError()) {
-            SQLServerException.makeFromDatabaseError(connection, null, nextResult.getDatabaseError().getMessage(),
+            SQLServerException.makeFromDatabaseError(connection, null, nextResult.getDatabaseError().getErrorMessage(),
                     nextResult.getDatabaseError(), false);
         }
+
+        // If we didn't clear current ResultSet, we wanted to read only warnings. Return back from here.
+        if (!clearFlag)
+            return false;
 
         // Not an error. Is it a result set?
         else if (nextResult.isResultSet()) {
@@ -1761,7 +1772,7 @@ public class SQLServerStatement implements ISQLServerStatement {
     @Override
     public int[] executeBatch() throws SQLServerException, BatchUpdateException, SQLTimeoutException {
         loggerExternal.entering(getClassNameLogging(), "executeBatch");
-        if (loggerExternal.isLoggable(Level.FINER) && Util.IsActivityTraceOn()) {
+        if (loggerExternal.isLoggable(Level.FINER) && Util.isActivityTraceOn()) {
             loggerExternal.finer(toString() + " ActivityId: " + ActivityCorrelator.getNext().toString());
         }
         checkClosed();
@@ -1838,7 +1849,7 @@ public class SQLServerStatement implements ISQLServerStatement {
     public long[] executeLargeBatch() throws SQLServerException, BatchUpdateException, SQLTimeoutException {
 
         loggerExternal.entering(getClassNameLogging(), "executeLargeBatch");
-        if (loggerExternal.isLoggable(Level.FINER) && Util.IsActivityTraceOn()) {
+        if (loggerExternal.isLoggable(Level.FINER) && Util.isActivityTraceOn()) {
             loggerExternal.finer(toString() + " ActivityId: " + ActivityCorrelator.getNext().toString());
         }
         checkClosed();
@@ -1948,9 +1959,9 @@ public class SQLServerStatement implements ISQLServerStatement {
                 return scrollOpt | TDS.SCROLLOPT_STATIC;
 
             // Other (invalid) values were caught by the constructor.
+            default:
+                return 0;
         }
-
-        return 0;
     }
 
     final int getResultSetCCOpt() {
@@ -1969,9 +1980,9 @@ public class SQLServerStatement implements ISQLServerStatement {
                 return TDS.CCOPT_OPTIMISTIC_CCVAL | TDS.CCOPT_UPDT_IN_PLACE | TDS.CCOPT_ALLOW_DIRECT;
 
             // Other (invalid) values were caught by the constructor.
+            default:
+                return 0;
         }
-
-        return 0;
     }
 
     private void doExecuteCursored(StmtExecCmd execCmd, String sql) throws SQLServerException {
@@ -2024,7 +2035,7 @@ public class SQLServerStatement implements ISQLServerStatement {
             int autoGeneratedKeys) throws SQLServerException, SQLTimeoutException {
         if (loggerExternal.isLoggable(java.util.logging.Level.FINER)) {
             loggerExternal.entering(getClassNameLogging(), "execute", new Object[] {sql, autoGeneratedKeys});
-            if (Util.IsActivityTraceOn()) {
+            if (Util.isActivityTraceOn()) {
                 loggerExternal.finer(toString() + " ActivityId: " + ActivityCorrelator.getNext().toString());
             }
         }
@@ -2074,7 +2085,7 @@ public class SQLServerStatement implements ISQLServerStatement {
     public final int executeUpdate(String sql, int autoGeneratedKeys) throws SQLServerException, SQLTimeoutException {
         if (loggerExternal.isLoggable(java.util.logging.Level.FINER)) {
             loggerExternal.entering(getClassNameLogging(), "executeUpdate", new Object[] {sql, autoGeneratedKeys});
-            if (Util.IsActivityTraceOn()) {
+            if (Util.isActivityTraceOn()) {
                 loggerExternal.finer(toString() + " ActivityId: " + ActivityCorrelator.getNext().toString());
             }
         }
@@ -2102,7 +2113,7 @@ public class SQLServerStatement implements ISQLServerStatement {
 
         if (loggerExternal.isLoggable(java.util.logging.Level.FINER)) {
             loggerExternal.entering(getClassNameLogging(), "executeLargeUpdate", new Object[] {sql, autoGeneratedKeys});
-            if (Util.IsActivityTraceOn()) {
+            if (Util.isActivityTraceOn()) {
                 loggerExternal.finer(toString() + " ActivityId: " + ActivityCorrelator.getNext().toString());
             }
         }
@@ -2412,7 +2423,7 @@ final class JDBCSyntaxTranslator {
         OFFSET,
         QUOTE,
         PROCESS
-    };
+    }
 
     // This pattern matches the LIMIT syntax with an OFFSET clause. The driver does not support OFFSET expression in the
     // LIMIT clause.
@@ -2644,15 +2655,12 @@ final class JDBCSyntaxTranslator {
             }
         }
 
-        // LIMIT escape is introduced in JDBC 4.1. Make sure versions lower than 4.1 do not have this feature.
-        if (((4 == DriverJDBCVersion.major) && (1 <= DriverJDBCVersion.minor)) || (4 < DriverJDBCVersion.major)) {
-            // Search for LIMIT escape syntax. Do further processing if present.
-            matcher = limitSyntaxGeneric.matcher(sql);
-            if (matcher.find()) {
-                StringBuffer sqlbuf = new StringBuffer(sql);
-                translateLimit(sqlbuf, 0, '\0');
-                return sqlbuf.toString();
-            }
+        // Search for LIMIT escape syntax. Do further processing if present.
+        matcher = limitSyntaxGeneric.matcher(sql);
+        if (matcher.find()) {
+            StringBuffer sqlbuf = new StringBuffer(sql);
+            translateLimit(sqlbuf, 0, '\0');
+            return sqlbuf.toString();
         }
 
         // 'sql' is modified if CALL or LIMIT escape sequence is present, Otherwise pass it straight through.

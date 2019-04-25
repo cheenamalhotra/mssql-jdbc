@@ -4,6 +4,7 @@
  */
 package com.microsoft.sqlserver.jdbc.databasemetadata;
 
+import static org.junit.Assert.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -11,7 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.BufferedInputStream;
 import java.io.File;
@@ -20,7 +20,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -29,16 +28,17 @@ import java.util.UUID;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.platform.runner.JUnitPlatform;
 import org.junit.runner.RunWith;
 
-import com.microsoft.sqlserver.jdbc.SQLServerConnection;
 import com.microsoft.sqlserver.jdbc.SQLServerDatabaseMetaData;
 import com.microsoft.sqlserver.jdbc.StringUtils;
 import com.microsoft.sqlserver.jdbc.TestResource;
 import com.microsoft.sqlserver.jdbc.TestUtils;
 import com.microsoft.sqlserver.testframework.AbstractTest;
+import com.microsoft.sqlserver.testframework.Constants;
 
 
 /**
@@ -54,7 +54,7 @@ public class DatabaseMetaDataTest extends AbstractTest {
      */
     @Test
     public void testDatabaseMetaDataWrapper() throws SQLException {
-        try (Connection con = DriverManager.getConnection(connectionString)) {
+        try (Connection con = getConnection()) {
             DatabaseMetaData databaseMetaData = con.getMetaData();
             assertTrue(databaseMetaData.isWrapperFor(DatabaseMetaData.class));
             assertSame(databaseMetaData, databaseMetaData.unwrap(DatabaseMetaData.class));
@@ -81,20 +81,16 @@ public class DatabaseMetaDataTest extends AbstractTest {
 
         File f = new File(manifestFile);
 
-        assumeTrue(f.exists(), TestResource.getResource("R_manifestNotFound"));
-
         try (InputStream in = new BufferedInputStream(new FileInputStream(f))) {
             Manifest manifest = new Manifest(in);
             Attributes attributes = manifest.getMainAttributes();
             String buildVersion = attributes.getValue("Bundle-Version");
 
-            try (SQLServerConnection conn = (SQLServerConnection) DriverManager.getConnection(connectionString)) {
-
+            try (Connection conn = getConnection()) {
                 DatabaseMetaData dbmData = conn.getMetaData();
-
                 String driverVersion = dbmData.getDriverVersion();
 
-                boolean isSnapshot = buildVersion.contains("SNAPSHOT");
+                // boolean isSnapshot = buildVersion.contains("SNAPSHOT");
 
                 // Removing all dots & chars easy for comparing.
                 driverVersion = driverVersion.replaceAll("[^0-9]", "");
@@ -118,13 +114,13 @@ public class DatabaseMetaDataTest extends AbstractTest {
      */
     @Test
     public void testGetURL() throws SQLException {
-        try (SQLServerConnection conn = (SQLServerConnection) DriverManager.getConnection(connectionString)) {
+        try (Connection conn = getConnection()) {
             DatabaseMetaData databaseMetaData = conn.getMetaData();
             String url = databaseMetaData.getURL();
             url = url.toLowerCase();
             assertFalse(url.contains("password"), TestResource.getResource("R_getURLContainsPwd"));
         } catch (Exception e) {
-            fail(TestResource.getResource("R_unexpectedErrorMessage") + e.toString());
+            fail(TestResource.getResource("R_unexpectedErrorMessage") + e.getMessage());
         }
     }
 
@@ -134,12 +130,12 @@ public class DatabaseMetaDataTest extends AbstractTest {
      * @throws SQLException
      */
     @Test
+    @Tag(Constants.xAzureSQLDW)
+    @Tag(Constants.xAzureSQLDB)
     public void testDBUserLogin() throws SQLException {
-        try (SQLServerConnection conn = (SQLServerConnection) DriverManager.getConnection(connectionString)) {
+        try (Connection conn = getConnection()) {
             DatabaseMetaData databaseMetaData = conn.getMetaData();
-
-            String connectionString = getConfiguredProperty("mssql_jdbc_test_connection_properties");
-
+            String connectionString = getConnectionString();
             connectionString = connectionString.toLowerCase();
 
             int startIndex = 0;
@@ -147,11 +143,11 @@ public class DatabaseMetaDataTest extends AbstractTest {
 
             if (connectionString.contains("username")) {
                 startIndex = connectionString.indexOf("username=");
-                endIndex = connectionString.indexOf(";", startIndex);
+                endIndex = connectionString.indexOf(Constants.SEMI_COLON, startIndex);
                 startIndex = startIndex + "username=".length();
             } else if (connectionString.contains("user")) {
                 startIndex = connectionString.indexOf("user=");
-                endIndex = connectionString.indexOf(";", startIndex);
+                endIndex = connectionString.indexOf(Constants.SEMI_COLON, startIndex);
                 startIndex = startIndex + "user=".length();
             }
 
@@ -159,11 +155,10 @@ public class DatabaseMetaDataTest extends AbstractTest {
             String userName = databaseMetaData.getUserName();
 
             assertNotNull(userName, TestResource.getResource("R_userNameNull"));
-
             assertTrue(userName.equalsIgnoreCase(userFromConnectionString),
                     TestResource.getResource("R_userNameNotMatch"));
         } catch (Exception e) {
-            fail(TestResource.getResource("R_unexpectedErrorMessage") + e.toString());
+            fail(TestResource.getResource("R_unexpectedErrorMessage") + e.getMessage());
         }
     }
 
@@ -174,8 +169,7 @@ public class DatabaseMetaDataTest extends AbstractTest {
      */
     @Test
     public void testDBSchema() throws SQLException {
-        try (SQLServerConnection conn = (SQLServerConnection) DriverManager.getConnection(connectionString);
-                ResultSet rs = conn.getMetaData().getSchemas()) {
+        try (Connection conn = getConnection(); ResultSet rs = conn.getMetaData().getSchemas()) {
 
             MessageFormat form = new MessageFormat(TestResource.getResource("R_nameEmpty"));
             Object[] msgArgs = {"Schema"};
@@ -183,7 +177,7 @@ public class DatabaseMetaDataTest extends AbstractTest {
                 assertTrue(!StringUtils.isEmpty(rs.getString(1)), form.format(msgArgs));
             }
         } catch (Exception e) {
-            fail(TestResource.getResource("R_unexpectedErrorMessage") + e.toString());
+            fail(TestResource.getResource("R_unexpectedErrorMessage") + e.getMessage());
         }
     }
 
@@ -194,16 +188,16 @@ public class DatabaseMetaDataTest extends AbstractTest {
      * @throws SQLException
      */
     @Test
+    @Tag(Constants.xAzureSQLDW)
+    @Tag(Constants.xAzureSQLDB)
     public void testDBSchemasForDashedCatalogName() throws SQLException {
         UUID id = UUID.randomUUID();
         String testCatalog = "dash-catalog" + id;
         String testSchema = "some-schema" + id;
 
-        try (Connection conn = DriverManager.getConnection(connectionString);
-                Statement stmt = connection.createStatement()) {
+        try (Connection conn = getConnection(); Statement stmt = connection.createStatement()) {
             TestUtils.dropDatabaseIfExists(testCatalog, stmt);
             stmt.execute(String.format("CREATE DATABASE [%s]", testCatalog));
-
             stmt.execute(String.format("USE [%s]", testCatalog));
             stmt.execute(String.format("CREATE SCHEMA [%s]", testSchema));
 
@@ -236,7 +230,7 @@ public class DatabaseMetaDataTest extends AbstractTest {
                 TestUtils.dropDatabaseIfExists(testCatalog, stmt);
             }
         } catch (Exception e) {
-            fail(TestResource.getResource("R_unexpectedErrorMessage") + e.toString());
+            fail(TestResource.getResource("R_unexpectedErrorMessage") + e.getMessage());
 
         }
     }
@@ -248,12 +242,14 @@ public class DatabaseMetaDataTest extends AbstractTest {
      * @throws SQLException
      */
     @Test
+    @Tag(Constants.xAzureSQLDW)
+    @Tag(Constants.xAzureSQLDB)
     public void testDBSchemasForDashedCatalogNameWithPattern() throws SQLException {
         UUID id = UUID.randomUUID();
         String testCatalog = "dash-catalog" + id;
         String testSchema = "some-schema" + id;
 
-        try (Connection conn = DriverManager.getConnection(connectionString); Statement stmt = conn.createStatement()) {
+        try (Connection conn = getConnection(); Statement stmt = conn.createStatement()) {
             TestUtils.dropDatabaseIfExists(testCatalog, stmt);
             stmt.execute(String.format("CREATE DATABASE [%s]", testCatalog));
 
@@ -283,7 +279,7 @@ public class DatabaseMetaDataTest extends AbstractTest {
                 TestUtils.dropDatabaseIfExists(testCatalog, stmt);
             }
         } catch (Exception e) {
-            fail(TestResource.getResource("R_unexpectedErrorMessage") + e.toString());
+            fail(TestResource.getResource("R_unexpectedErrorMessage") + e.getMessage());
 
         }
     }
@@ -300,7 +296,7 @@ public class DatabaseMetaDataTest extends AbstractTest {
      */
     public void testDBTables() throws SQLException {
 
-        try (Connection con = DriverManager.getConnection(connectionString)) {
+        try (Connection con = getConnection()) {
             DatabaseMetaData databaseMetaData = con.getMetaData();
             try (ResultSet rsCatalog = databaseMetaData.getCatalogs()) {
 
@@ -335,7 +331,7 @@ public class DatabaseMetaDataTest extends AbstractTest {
     @Test
     public void testGetDBColumn() throws SQLException {
 
-        try (Connection conn = DriverManager.getConnection(connectionString)) {
+        try (Connection conn = getConnection()) {
             DatabaseMetaData databaseMetaData = conn.getMetaData();
 
             String[] types = {"TABLE"};
@@ -367,7 +363,7 @@ public class DatabaseMetaDataTest extends AbstractTest {
                 }
             }
         } catch (Exception e) {
-            fail(TestResource.getResource("R_unexpectedErrorMessage") + e.toString());
+            fail(TestResource.getResource("R_unexpectedErrorMessage") + e.getMessage());
         }
     }
 
@@ -381,9 +377,10 @@ public class DatabaseMetaDataTest extends AbstractTest {
      * @throws SQLException
      */
     @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testGetColumnPrivileges() throws SQLException {
 
-        try (Connection conn = DriverManager.getConnection(connectionString)) {
+        try (Connection conn = getConnection()) {
             DatabaseMetaData databaseMetaData = conn.getMetaData();
             String[] types = {"TABLE"};
             try (ResultSet rsTables = databaseMetaData.getTables(null, null, "%", types)) {
@@ -412,25 +409,21 @@ public class DatabaseMetaDataTest extends AbstractTest {
                 }
             }
         } catch (Exception e) {
-            fail(TestResource.getResource("R_unexpectedErrorMessage") + e.toString());
+            fail(TestResource.getResource("R_unexpectedErrorMessage") + e.getMessage());
         }
     }
 
     /**
-     * TODO: Check JDBC Specs: Can we have any tables/functions without category?
-     * 
-     * Testing {@link SQLServerDatabaseMetaData#getFunctions(String, String, String)} with sending wrong category.
+     * Testing {@link SQLServerDatabaseMetaData#getFunctions(String, String, String)} with sending wrong catalog.
      * 
      * @throws SQLException
      */
     @Test
     public void testGetFunctionsWithWrongParams() throws SQLException {
-        try (Connection conn = DriverManager.getConnection(connectionString)) {
+        try (Connection conn = getConnection()) {
             conn.getMetaData().getFunctions("", null, "xp_%");
             assertTrue(false, TestResource.getResource("R_noSchemaShouldFail"));
-        } catch (Exception ae) {
-
-        }
+        } catch (Exception ae) {}
     }
 
     /**
@@ -440,8 +433,7 @@ public class DatabaseMetaDataTest extends AbstractTest {
      */
     @Test
     public void testGetFunctions() throws SQLException {
-        try (Connection conn = DriverManager.getConnection(connectionString);
-                ResultSet rs = conn.getMetaData().getFunctions(null, null, "xp_%")) {
+        try (Connection conn = getConnection(); ResultSet rs = conn.getMetaData().getFunctions(null, null, "xp_%")) {
 
             MessageFormat form = new MessageFormat(TestResource.getResource("R_nameNull"));
             Object[][] msgArgs = {{"FUNCTION_CAT"}, {"FUNCTION_SCHEM"}, {"FUNCTION_NAME"}, {"NUM_INPUT_PARAMS"},
@@ -456,7 +448,7 @@ public class DatabaseMetaDataTest extends AbstractTest {
                 assertTrue(!StringUtils.isEmpty(rs.getString("FUNCTION_TYPE")), form.format(msgArgs[6]));
             }
         } catch (Exception e) {
-            fail(TestResource.getResource("R_unexpectedErrorMessage") + e.toString());
+            fail(TestResource.getResource("R_unexpectedErrorMessage") + e.getMessage());
         }
     }
 
@@ -466,7 +458,7 @@ public class DatabaseMetaDataTest extends AbstractTest {
      */
     @Test
     public void testGetFunctionColumns() throws SQLException {
-        try (Connection conn = DriverManager.getConnection(connectionString)) {
+        try (Connection conn = getConnection()) {
 
             DatabaseMetaData databaseMetaData = conn.getMetaData();
 
@@ -497,7 +489,58 @@ public class DatabaseMetaDataTest extends AbstractTest {
                 }
             }
         } catch (Exception e) {
-            fail(TestResource.getResource("R_unexpectedErrorMessage") + e.toString());
+            fail(TestResource.getResource("R_unexpectedErrorMessage") + e.getMessage());
+        }
+    }
+
+    @Test
+    @Tag(Constants.xAzureSQLDW)
+    @Tag(Constants.xAzureSQLDB)
+    public void testPreparedStatementMetadataCaching() throws SQLException {
+        try (Connection connection = getConnection()) {
+
+            DatabaseMetaData databaseMetaData = connection.getMetaData();
+            String[] types = {"TABLE"};
+
+            Statement stmtNullCatalog;
+            Statement stmtMasterCatalog;
+
+            try (ResultSet rs = databaseMetaData.getTables(null, null, "%", types)) {
+                stmtNullCatalog = rs.getStatement();
+            }
+            try (ResultSet rs = databaseMetaData.getTables(null, null, "%", types)) {
+                assertSame(stmtNullCatalog, rs.getStatement());
+                rs.getStatement().close();
+            }
+            try (ResultSet rs = databaseMetaData.getTables(null, null, "%", types)) {
+                assertNotSame(stmtNullCatalog, rs.getStatement());
+                stmtNullCatalog = rs.getStatement();
+            }
+            try (ResultSet rs = databaseMetaData.getTables(null, null, "%", types)) {
+                assertSame(stmtNullCatalog, rs.getStatement());
+            }
+            try (ResultSet rs = databaseMetaData.getTables("master", null, "%", types)) {
+                stmtMasterCatalog = rs.getStatement();
+            }
+            try (ResultSet rs = databaseMetaData.getTables("master", null, "%", types)) {
+                assertSame(stmtMasterCatalog, rs.getStatement());
+                rs.getStatement().close();
+            }
+            try (ResultSet rs = databaseMetaData.getTables("master", null, "%", types)) {
+                assertNotSame(stmtMasterCatalog, rs.getStatement());
+                stmtMasterCatalog = rs.getStatement();
+            }
+            try (ResultSet rs = databaseMetaData.getTables("master", null, "%", types)) {
+                assertSame(stmtMasterCatalog, rs.getStatement());
+            }
+            try (ResultSet rs = databaseMetaData.getTables(null, null, "%", types)) {
+                assertSame(stmtNullCatalog, rs.getStatement());
+                rs.getStatement().close();
+            }
+            try (ResultSet rs = databaseMetaData.getTables("master", null, "%", types)) {
+                assertSame(stmtMasterCatalog, rs.getStatement());
+                rs.getStatement().close();
+            }
         }
     }
 }

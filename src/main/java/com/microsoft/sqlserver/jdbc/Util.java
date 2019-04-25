@@ -31,7 +31,7 @@ final class Util {
     final static char[] hexChars = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
     final static String WSIDNotAvailable = ""; // default string when WSID is not available
 
-    final static String ActivityIdTraceProperty = "com.microsoft.sqlserver.jdbc.traceactivity";
+    final static String ACTIVITY_ID_TRACE_PROPERTY = "com.microsoft.sqlserver.jdbc.traceactivity";
 
     // The JRE is identified by the string below so that the driver can make
     // any vendor or version specific decisions
@@ -380,7 +380,7 @@ final class Util {
                         name = SQLServerDriver.getNormalizedPropertyName(name, logger);
                         if (null != name) {
                             if (logger.isLoggable(Level.FINE)) {
-                                if (false == name.equals(SQLServerDriverStringProperty.USER.toString())) {
+                                if (!name.equals(SQLServerDriverStringProperty.USER.toString())) {
                                     if (!name.toLowerCase(Locale.ENGLISH).contains("password")
                                             && !name.toLowerCase(Locale.ENGLISH).contains("keystoresecret")) {
                                         logger.fine("Property:" + name + " Value:" + value);
@@ -417,8 +417,8 @@ final class Util {
                         name = SQLServerDriver.getNormalizedPropertyName(name, logger);
                         if (null != name) {
                             if (logger.isLoggable(Level.FINE)) {
-                                if ((false == name.equals(SQLServerDriverStringProperty.USER.toString()))
-                                        && (false == name.equals(SQLServerDriverStringProperty.PASSWORD.toString())))
+                                if (!name.equals(SQLServerDriverStringProperty.USER.toString())
+                                        && !name.equals(SQLServerDriverStringProperty.PASSWORD.toString()))
                                     logger.fine("Property:" + name + " Value:" + value);
                             }
                             p.put(name, value);
@@ -487,9 +487,9 @@ final class Util {
                 name = SQLServerDriver.getNormalizedPropertyName(name, logger);
                 if (null != name) {
                     if (logger.isLoggable(Level.FINE)) {
-                        if ((false == name.equals(SQLServerDriverStringProperty.USER.toString()))
-                                && (false == name.equals(SQLServerDriverStringProperty.PASSWORD.toString()))
-                                && (false == name.equals(SQLServerDriverStringProperty.KEY_STORE_SECRET.toString())))
+                        if (!name.equals(SQLServerDriverStringProperty.USER.toString())
+                                && !name.equals(SQLServerDriverStringProperty.PASSWORD.toString())
+                                && !name.equals(SQLServerDriverStringProperty.KEY_STORE_SECRET.toString()))
                             logger.fine("Property:" + name + " Value:" + value);
                     }
                     p.put(name, value);
@@ -767,9 +767,9 @@ final class Util {
         return sb.toString();
     }
 
-    static boolean IsActivityTraceOn() {
+    static boolean isActivityTraceOn() {
         LogManager lm = LogManager.getLogManager();
-        String activityTrace = lm.getProperty(ActivityIdTraceProperty);
+        String activityTrace = lm.getProperty(ACTIVITY_ID_TRACE_PROPERTY);
         return ("on".equalsIgnoreCase(activityTrace));
     }
 
@@ -833,6 +833,8 @@ final class Util {
                     return;
                 }
                 break;
+            default:
+                break;
         }
         MessageFormat form = new MessageFormat(SQLServerException.getErrString("R_valueOutOfRange"));
         Object[] msgArgs = {jdbcType};
@@ -863,6 +865,8 @@ final class Util {
                         break;
                 }
                 break;
+            default:
+                break;
         }
 
         switch (javaType) {
@@ -878,13 +882,10 @@ final class Util {
                 } else {
                     return ((null == value) ? 0 : ((String) value).length());
                 }
-
             case BYTEARRAY:
                 return ((null == value) ? 0 : ((byte[]) value).length);
-
             case BIGDECIMAL:
                 int length;
-
                 if (null == precision) {
                     if (null == value) {
                         length = 0;
@@ -914,30 +915,26 @@ final class Util {
                 } else {
                     length = precision;
                 }
-
                 return length;
-
             case TIMESTAMP:
             case TIME:
             case DATETIMEOFFSET:
                 return ((null == scale) ? TDS.MAX_FRACTIONAL_SECONDS_SCALE : scale);
-
             case CLOB:
                 return ((null == value) ? 0 : (DataTypes.NTEXT_MAX_CHARS * 2));
-
             case NCLOB:
             case READER:
                 return ((null == value) ? 0 : DataTypes.NTEXT_MAX_CHARS);
+            default:
+                return 0;
         }
-        return 0;
     }
 
     // If the access token is expiring within next 10 minutes, lets just re-create a token for this connection attempt.
     // If the token is expiring within the next 45 mins, try to fetch a new token if there is no thread already doing
     // it.
     // If a thread is already doing the refresh, just use the existing token and proceed.
-    static synchronized boolean checkIfNeedNewAccessToken(SQLServerConnection connection) {
-        Date accessTokenExpireDate = connection.getAuthenticationResult().getExpiresOnDate();
+    static synchronized boolean checkIfNeedNewAccessToken(SQLServerConnection connection, Date accessTokenExpireDate) {
         Date now = new Date();
 
         // if the token's expiration is within the next 45 mins
@@ -957,7 +954,6 @@ final class Util {
                 }
             }
         }
-
         return false;
     }
 
@@ -1044,19 +1040,19 @@ final class SQLIdentifier {
         StringBuilder fullName = new StringBuilder(256);
 
         if (serverName.length() > 0)
-            fullName.append("[" + serverName + "].");
+            fullName.append("[").append(serverName).append("].");
 
         if (databaseName.length() > 0)
-            fullName.append("[" + databaseName + "].");
+            fullName.append("[").append(databaseName).append("].");
         else
             assert 0 == serverName.length();
 
         if (schemaName.length() > 0)
-            fullName.append("[" + schemaName + "].");
+            fullName.append("[").append(schemaName).append("].");
         else if (databaseName.length() > 0)
             fullName.append('.');
 
-        fullName.append("[" + objectName + "]");
+        fullName.append("[").append(objectName).append("]");
 
         return fullName.toString();
     }

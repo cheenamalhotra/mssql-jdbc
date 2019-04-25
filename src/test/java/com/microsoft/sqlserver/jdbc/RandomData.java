@@ -25,16 +25,12 @@ public class RandomData {
     private static Random r = new Random();
 
     public static boolean returnNull = (0 == r.nextInt(5)); // 20% chance of return null
-    public static boolean returnFullLength = (0 == r.nextInt(2)); // 50% chance of return full length for char/nchar and
-                                                                  // binary types
     public static boolean returnMinMax = (0 == r.nextInt(5)); // 20% chance of return Min/Max value
     public static boolean returnZero = (0 == r.nextInt(10)); // 10% chance of return zero
 
     private static String specicalCharSet = "ÀÂÃÄËßîðÐ";
     private static String normalCharSet = "1234567890-=!@#$%^&*()_+qwertyuiop[]\\asdfghjkl;'zxcvbnm,./QWERTYUIOP{}|ASDFGHJKL:\"ZXCVBNM<>?";
-
     private static String unicodeCharSet = "♠♣♥♦林花謝了春紅太匆匆無奈朝我附件为放假哇额外放我放问역사적으로본래한민족의영역은만주와연해주의일부를포함하였으나会和太空特工我來寒雨晚來風胭脂淚留人醉幾時重自是人生長恨水長東ྱོགས་སུ་འཁོར་བའི་ས་ཟླུུམ་ཞིག་ལ་ངོས་འཛིན་དགོས་ཏེ།ངག་ཕྱོαβγδεζηθικλμνξοπρστυφχψ太陽系の年齢もまた隕石の年代測定に依拠するので";
-
     private static String numberCharSet = "1234567890";
     private static String numberCharSet2 = "123456789";
 
@@ -357,8 +353,8 @@ public class RandomData {
             minimumLength = 1;
         }
 
-        int length;
         if (columnLength.toLowerCase().equals("max")) {
+            int length;
             // 50% chance of return value longer than 8000/4000
             if (r.nextBoolean()) {
                 length = r.nextInt(100000) + maxBound;
@@ -373,17 +369,9 @@ public class RandomData {
             }
         } else {
             int columnLengthInt = Integer.parseInt(columnLength);
-            if (returnFullLength) {
-                length = columnLengthInt;
-                byte[] bytes = new byte[length];
-                r.nextBytes(bytes);
-                return bytes;
-            } else {
-                length = r.nextInt(columnLengthInt - minimumLength) + minimumLength;
-                byte[] bytes = new byte[length];
-                r.nextBytes(bytes);
-                return bytes;
-            }
+            byte[] bytes = new byte[columnLengthInt];
+            r.nextBytes(bytes);
+            return bytes;
         }
     }
 
@@ -699,8 +687,8 @@ public class RandomData {
             minimumLength = 1;
         }
 
-        int length;
         if (columnLength.toLowerCase().equals("max")) {
+            int length;
             // 50% chance of return value longer than 8000/4000
             if (r.nextBoolean()) {
                 length = r.nextInt(100000) + maxBound;
@@ -711,13 +699,7 @@ public class RandomData {
             }
         } else {
             int columnLengthInt = Integer.parseInt(columnLength);
-            if (returnFullLength) {
-                length = columnLengthInt;
-                return buildRandomString(length, charSet);
-            } else {
-                length = r.nextInt(columnLengthInt - minimumLength) + minimumLength;
-                return buildRandomString(length, charSet);
-            }
+            return buildRandomString(columnLengthInt, charSet);
         }
     }
 

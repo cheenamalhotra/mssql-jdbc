@@ -296,7 +296,7 @@ final class Parameter {
         }
 
         // forceEncryption is true, shouldhonorae is false
-        if ((true == forceEncrypt) && (false == Util.shouldHonorAEForParameters(stmtColumnEncriptionSetting, con))) {
+        if (forceEncrypt && !Util.shouldHonorAEForParameters(stmtColumnEncriptionSetting, con)) {
 
             MessageFormat form = new MessageFormat(
                     SQLServerException.getErrString("R_ForceEncryptionTrue_HonorAEFalse"));
@@ -603,10 +603,9 @@ final class Parameter {
                          */
 
                         if (userProvidesScale) {
-                            param.typeDefinition = (SSType.TIME.toString() + "(" + outScale + ")");
+                            param.typeDefinition = SSType.TIME.toString() + "(" + outScale + ")";
                         } else {
-                            param.typeDefinition = param.typeDefinition = SSType.TIME.toString() + "(" + valueLength
-                                    + ")";
+                            param.typeDefinition = SSType.TIME.toString() + "(" + valueLength + ")";
                         }
                     } else {
                         param.typeDefinition = con.getSendTimeAsDatetime() ? SSType.DATETIME.toString()
@@ -1153,7 +1152,7 @@ final class Parameter {
 
         try {
             inputDTV.sendCryptoMetaData(this.cryptoMeta, tdsWriter);
-            inputDTV.jdbcTypeSetByUser(getJdbcTypeSetByUser(), getValueLength());
+            inputDTV.setJdbcTypeSetByUser(getJdbcTypeSetByUser(), getValueLength());
             inputDTV.sendByRPC(name, null, conn.getDatabaseCollation(), valueLength, isOutput() ? outScale : scale,
                     isOutput(), tdsWriter, conn);
         } finally {

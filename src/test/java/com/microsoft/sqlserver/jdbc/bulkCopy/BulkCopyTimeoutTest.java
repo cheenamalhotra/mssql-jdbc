@@ -7,14 +7,15 @@ package com.microsoft.sqlserver.jdbc.bulkCopy;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.sql.SQLException;
-import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.platform.runner.JUnitPlatform;
 import org.junit.runner.RunWith;
 
 import com.microsoft.sqlserver.jdbc.SQLServerBulkCopyOptions;
+import com.microsoft.sqlserver.testframework.Constants;
 
 
 /**
@@ -36,6 +37,7 @@ public class BulkCopyTimeoutTest extends BulkCopyTestSetUp {
      */
     @Test
     @DisplayName("BulkCopy:test zero timeout")
+    @Tag(Constants.xAzureSQLDW)
     public void testZeroTimeOut() throws SQLException {
         testBulkCopyWithTimeout(0);
     }
@@ -47,18 +49,20 @@ public class BulkCopyTimeoutTest extends BulkCopyTestSetUp {
      */
     @Test
     @DisplayName("BulkCopy:test negative timeout")
-    public void testNegativeTimeOut() throws SQLException {
+    public void testNegativeTimeOut() {
         assertThrows(SQLException.class, new org.junit.jupiter.api.function.Executable() {
             @Override
             public void execute() throws SQLException {
                 testBulkCopyWithTimeout(-1);
             }
-        });
+        }, "The timeout argument cannot be negative.");
     }
 
     private void testBulkCopyWithTimeout(int timeout) throws SQLException {
         BulkCopyTestWrapper bulkWrapper = new BulkCopyTestWrapper(connectionString);
-        bulkWrapper.setUsingConnection((0 == ThreadLocalRandom.current().nextInt(2)) ? true : false);
+        bulkWrapper.setUsingConnection((0 == Constants.RANDOM.nextInt(2)) ? true : false, ds);
+        bulkWrapper.setUsingXAConnection((0 == Constants.RANDOM.nextInt(2)) ? true : false, dsXA);
+        bulkWrapper.setUsingPooledConnection((0 == Constants.RANDOM.nextInt(2)) ? true : false, dsPool);
         SQLServerBulkCopyOptions option = new SQLServerBulkCopyOptions();
         option.setBulkCopyTimeout(timeout);
         bulkWrapper.useBulkCopyOptions(true);

@@ -10,23 +10,27 @@ import static org.junit.Assert.assertNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.math.BigDecimal;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.NClob;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLWarning;
 import java.sql.SQLXML;
 import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.OffsetTime;
 import java.util.TimeZone;
 import java.util.UUID;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.platform.runner.JUnitPlatform;
 import org.junit.runner.RunWith;
@@ -36,6 +40,7 @@ import com.microsoft.sqlserver.jdbc.RandomUtil;
 import com.microsoft.sqlserver.jdbc.TestUtils;
 import com.microsoft.sqlserver.testframework.AbstractSQLGenerator;
 import com.microsoft.sqlserver.testframework.AbstractTest;
+import com.microsoft.sqlserver.testframework.Constants;
 
 
 @RunWith(JUnitPlatform.class)
@@ -50,8 +55,9 @@ public class ResultSetTest extends AbstractTest {
      * @throws SQLException
      */
     @Test
+    @Tag(Constants.xAzureSQLDW)
     public void testJdbc41ResultSetMethods() throws SQLException {
-        try (Connection con = DriverManager.getConnection(connectionString); Statement stmt = con.createStatement()) {
+        try (Connection con = getConnection(); Statement stmt = con.createStatement()) {
             stmt.executeUpdate("create table " + AbstractSQLGenerator.escapeIdentifier(tableName) + " ( " + "col1 int, "
                     + "col2 varchar(512), " + "col3 float, " + "col4 decimal(10,5), " + "col5 uniqueidentifier, "
                     + "col6 xml, " + "col7 varbinary(max), " + "col8 text, " + "col9 ntext, " + "col10 varbinary(max), "
@@ -243,7 +249,7 @@ public class ResultSetTest extends AbstractTest {
                     assertFalse(rs.next());
                 }
             } finally {
-                stmt.executeUpdate("drop table " + AbstractSQLGenerator.escapeIdentifier(tableName));
+                TestUtils.dropTableIfExists(AbstractSQLGenerator.escapeIdentifier(tableName), stmt);
             }
         }
     }
@@ -255,7 +261,7 @@ public class ResultSetTest extends AbstractTest {
      */
     @Test
     public void testGetObjectAsLocalDateTime() throws SQLException {
-        try (Connection con = DriverManager.getConnection(connectionString); Statement stmt = con.createStatement()) {
+        try (Connection con = getConnection(); Statement stmt = con.createStatement()) {
             TimeZone prevTimeZone = TimeZone.getDefault();
             TimeZone.setDefault(TimeZone.getTimeZone("America/Edmonton"));
 
@@ -264,8 +270,8 @@ public class ResultSetTest extends AbstractTest {
             final String testValueTime = "02:00:00.1234567";
             final String testValueDateTime = testValueDate + "T" + testValueTime;
 
-            stmt.executeUpdate("CREATE TABLE " + AbstractSQLGenerator.escapeIdentifier(tableName)
-                    + " (id INT PRIMARY KEY, dt2 DATETIME2)");
+            stmt.executeUpdate(
+                    "CREATE TABLE " + AbstractSQLGenerator.escapeIdentifier(tableName) + " (id INT, dt2 DATETIME2)");
             stmt.executeUpdate("INSERT INTO " + AbstractSQLGenerator.escapeIdentifier(tableName)
                     + " (id, dt2) VALUES (1, '" + testValueDateTime + "')");
 
@@ -292,16 +298,51 @@ public class ResultSetTest extends AbstractTest {
     }
 
     /**
+     * Tests getObject(n, java.time.OffsetDateTime.class) and getObject(n, java.time.OffsetTime.class).
+     * 
+     * @throws SQLException
+     */
+    @Test
+    @Tag(Constants.xAzureSQLDW)
+    public void testGetObjectAsOffsetDateTime() throws SQLException {
+        try (Connection con = getConnection(); Statement stmt = con.createStatement()) {
+            final String testValue = "2018-01-02T11:22:33.123456700+12:34";
+
+            stmt.executeUpdate("CREATE TABLE " + AbstractSQLGenerator.escapeIdentifier(tableName)
+                    + " (id INT PRIMARY KEY, dto DATETIMEOFFSET, dto2 DATETIMEOFFSET)");
+            stmt.executeUpdate("INSERT INTO " + AbstractSQLGenerator.escapeIdentifier(tableName)
+                    + " (id, dto, dto2) VALUES (1, '" + testValue + "', null)");
+
+            try (ResultSet rs = stmt.executeQuery(
+                    "SELECT dto, dto2 FROM " + AbstractSQLGenerator.escapeIdentifier(tableName) + " WHERE id=1")) {
+                rs.next();
+
+                OffsetDateTime expected = OffsetDateTime.parse(testValue);
+                OffsetDateTime actual = rs.getObject(1, OffsetDateTime.class);
+                assertEquals(expected, actual);
+                assertNull(rs.getObject(2, OffsetDateTime.class));
+
+                OffsetTime expectedTime = OffsetTime.parse(testValue.split("T")[1]);
+                OffsetTime actualTime = rs.getObject(1, OffsetTime.class);
+                assertEquals(expectedTime, actualTime);
+                assertNull(rs.getObject(2, OffsetTime.class));
+            } finally {
+                TestUtils.dropTableIfExists(AbstractSQLGenerator.escapeIdentifier(tableName), stmt);
+            }
+        }
+    }
+
+    /**
      * Tests ResultSet#isWrapperFor and ResultSet#unwrap.
      * 
      * @throws SQLException
      */
     @Test
     public void testResultSetWrapper() throws SQLException {
-        try (Connection con = DriverManager.getConnection(connectionString); Statement stmt = con.createStatement()) {
+        try (Connection con = getConnection(); Statement stmt = con.createStatement()) {
 
             stmt.executeUpdate("create table " + AbstractSQLGenerator.escapeIdentifier(tableName)
-                    + " (col1 int, col2 text, col3 int identity(1,1) primary key)");
+                    + " (col1 int, col2 varchar(8000), col3 int identity(1,1))");
 
             try (ResultSet rs = stmt
                     .executeQuery("select * from " + AbstractSQLGenerator.escapeIdentifier(tableName))) {
@@ -323,10 +364,229 @@ public class ResultSetTest extends AbstractTest {
      */
     @Test
     public void testGetterOnNull() throws SQLException {
-        try (Connection con = DriverManager.getConnection(connectionString); Statement stmt = con.createStatement();
+        try (Connection con = getConnection(); Statement stmt = con.createStatement();
                 ResultSet rs = stmt.executeQuery("select null")) {
             rs.next();
             assertEquals(null, rs.getTime(1));
+        }
+    }
+
+    /**
+     * Tests getters and setters for holdability.
+     * 
+     * @throws SQLException
+     */
+    @Test
+    @Tag(Constants.xAzureSQLDW)
+    public void testGetSetHoldability() throws SQLException {
+        int[] holdabilityOptions = {ResultSet.HOLD_CURSORS_OVER_COMMIT, ResultSet.CLOSE_CURSORS_AT_COMMIT};
+
+        try (Connection con = getConnection(); Statement stmt = con.createStatement();
+                ResultSet rs = stmt.executeQuery("select null")) {
+
+            int connHold = con.getHoldability();
+            assertEquals(stmt.getResultSetHoldability(), connHold);
+            assertEquals(rs.getHoldability(), connHold);
+
+            for (int i = 0; i < holdabilityOptions.length; i++) {
+                if ((connHold = con.getHoldability()) != holdabilityOptions[i]) {
+                    con.setHoldability(holdabilityOptions[i]);
+                    assertEquals(con.getHoldability(), holdabilityOptions[i]);
+                }
+            }
+        }
+    }
+
+    /**
+     * Call resultset methods to run thru some code paths
+     * 
+     * @throws SQLException
+     */
+    @Test
+    @Tag(Constants.xAzureSQLDW)
+    public void testResultSetMethods() throws SQLException {
+        try (Connection con = getConnection();
+                Statement stmt = con.createStatement(ResultSet.TYPE_SCROLL_SENSITIVE, ResultSet.CONCUR_UPDATABLE)) {
+
+            stmt.executeUpdate("create table " + AbstractSQLGenerator.escapeIdentifier(tableName)
+                    + " (col1 int primary key, col2 varchar(255))");
+            stmt.executeUpdate(
+                    "insert into " + AbstractSQLGenerator.escapeIdentifier(tableName) + " values(0, " + " 'one')");
+            stmt.executeUpdate(
+                    "insert into " + AbstractSQLGenerator.escapeIdentifier(tableName) + " values(1, " + "'two')");
+            stmt.executeUpdate(
+                    "insert into " + AbstractSQLGenerator.escapeIdentifier(tableName) + " values(2, " + "'three')");
+
+            try (ResultSet rs = stmt
+                    .executeQuery("select * from " + AbstractSQLGenerator.escapeIdentifier(tableName))) {
+
+                rs.clearWarnings();
+
+                assert (rs.getType() == ResultSet.TYPE_SCROLL_SENSITIVE);
+
+                // check cursor
+                rs.first();
+                assert (rs.isFirst());
+
+                rs.relative(1);
+                assert (!rs.isFirst());
+
+                rs.last();
+                assert (rs.isLast());
+
+                rs.beforeFirst();
+                assert (rs.isBeforeFirst());
+
+                rs.afterLast();
+                assert (rs.isAfterLast());
+                assert (!rs.isLast());
+
+                rs.absolute(1);
+                assert (rs.getRow() == 1);
+
+                rs.moveToInsertRow();
+                assert (rs.getRow() == 0);
+
+                // insert and update
+                rs.updateInt(1, 4);
+                rs.updateString(2, "four");
+                rs.insertRow();
+
+                rs.updateObject(1, 5);
+                rs.updateObject(2, new String("five"));
+                rs.insertRow();
+
+                rs.updateObject("col1", 6);
+                rs.updateObject("col2", new String("six"));
+                rs.insertRow();
+
+                rs.updateObject(1, 7, 0);
+                rs.updateObject("col2", new String("seven"), 0);
+                rs.insertRow();
+
+                // valid column names
+                assert (rs.findColumn("col1") == 1);
+                assert (rs.findColumn("col2") == 2);
+
+                // invalid column name
+                try {
+                    rs.findColumn("col3");
+                } catch (SQLException e) {
+                    assertTrue(e.getMessage().contains("column name col3 is not valid"));
+                }
+
+                rs.moveToCurrentRow();
+                assert (rs.getRow() == 1);
+
+                // no inserts or updates
+                assert (!rs.rowInserted());
+                assert (!rs.rowUpdated());
+
+                // check concurrency method
+                assert (rs.getConcurrency() == ResultSet.CONCUR_UPDATABLE);
+
+                // check fetch direction
+                rs.setFetchDirection(ResultSet.FETCH_FORWARD);
+                assert (rs.getFetchDirection() == ResultSet.FETCH_FORWARD);
+
+                // check fetch size
+                rs.setFetchSize(1);
+                assert (rs.getFetchSize() == 1);
+
+                rs.refreshRow();
+
+                rs.previous();
+                assert (!rs.rowDeleted());
+                rs.next();
+
+                // delete row
+                do {
+                    rs.moveToCurrentRow();
+                    rs.deleteRow();
+                    assert (rs.rowDeleted());
+                } while (rs.next());
+
+            } catch (Exception e) {
+                fail(e.getMessage());
+            } finally {
+                TestUtils.dropTableIfExists(AbstractSQLGenerator.escapeIdentifier(tableName), stmt);
+            }
+        }
+    }
+
+    @Test
+    @Tag(Constants.xAzureSQLDW)
+    public void testMultipleResultSets() throws SQLException {
+        try (Connection con = getConnection(); Statement stmt = con.createStatement()) {
+            stmt.execute(
+                    "CREATE TABLE " + AbstractSQLGenerator.escapeIdentifier(tableName) + " (c1 int IDENTITY, c2 int)");
+            String SQL = "exec sp_help 'dbo." + TestUtils.escapeSingleQuotes(tableName) + "'";
+
+            boolean results = stmt.execute(SQL);
+            int rsCount = 0;
+            int warningCount = 0;
+
+            // Loop through the available result sets.
+            while (results) {
+                try (ResultSet rs = stmt.getResultSet()) {
+                    rsCount++;
+                    int i = 1;
+                    String firstColumnValue = null;
+                    while (rs.next()) {
+                        switch (rsCount) {
+                            case 1:
+                                firstColumnValue = rs.getString("Name");
+                                assert (firstColumnValue.equals(tableName));
+                                break;
+                            case 2:
+                                firstColumnValue = rs.getString("Column_name");
+                                assert (firstColumnValue.equalsIgnoreCase("c" + i++));
+                                break;
+                            case 3:
+                                firstColumnValue = rs.getString("Identity");
+                                assert (firstColumnValue.equalsIgnoreCase("c1"));
+                                break;
+                            case 4:
+                                firstColumnValue = rs.getString("RowGuidCol");
+                                assert (firstColumnValue.equalsIgnoreCase("No rowguidcol column defined."));
+                                break;
+                            case 5:
+                                firstColumnValue = rs.getString("Data_located_on_filegroup");
+                                assert (firstColumnValue.equalsIgnoreCase("PRIMARY"));
+                                break;
+                        }
+                    }
+                }
+
+                SQLWarning warnings = stmt.getWarnings();
+                while (null != warnings) {
+                    warningCount++;
+                    warnings = warnings.getNextWarning();
+                }
+                results = stmt.getMoreResults();
+            }
+            assert (!stmt.getMoreResults() && -1 == stmt.getUpdateCount());
+            assert (rsCount == 5);
+            assert (warningCount == 26);
+
+            /*
+             * Testing Scenario: There are no more results when the following is true ............
+             * ((stmt.getMoreResults() == false) && (stmt.getUpdateCount() == -1))
+             */
+            stmt.execute("INSERT INTO " + AbstractSQLGenerator.escapeIdentifier(tableName) + " values (12345)");
+            assert (stmt.getUpdateCount() == 1);
+            assert (!stmt.getMoreResults());
+
+            try (ResultSet rs = stmt
+                    .executeQuery("SELECT * FROM " + AbstractSQLGenerator.escapeIdentifier(tableName))) {
+                // Calling getMoreResults() consumes and closes the current ResultSet
+                assert (!stmt.getMoreResults() && -1 == stmt.getUpdateCount());
+                assert (rs.isClosed());
+            }
+        } finally {
+            try (Statement stmt = connection.createStatement()) {
+                TestUtils.dropTableIfExists(AbstractSQLGenerator.escapeIdentifier(tableName), stmt);
+            }
         }
     }
 }

@@ -8,7 +8,6 @@ package com.microsoft.sqlserver.jdbc;
 import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
-import java.sql.SQLFeatureNotSupportedException;
 import java.text.MessageFormat;
 import java.util.Enumeration;
 import java.util.Locale;
@@ -65,7 +64,8 @@ enum SqlAuthentication {
     NotSpecified,
     SqlPassword,
     ActiveDirectoryPassword,
-    ActiveDirectoryIntegrated;
+    ActiveDirectoryIntegrated,
+    ActiveDirectoryMSI;
 
     static SqlAuthentication valueOfString(String value) throws SQLServerException {
         SqlAuthentication method = null;
@@ -80,6 +80,8 @@ enum SqlAuthentication {
         } else if (value.toLowerCase(Locale.US)
                 .equalsIgnoreCase(SqlAuthentication.ActiveDirectoryIntegrated.toString())) {
             method = SqlAuthentication.ActiveDirectoryIntegrated;
+        } else if (value.toLowerCase(Locale.US).equalsIgnoreCase(SqlAuthentication.ActiveDirectoryMSI.toString())) {
+            method = SqlAuthentication.ActiveDirectoryMSI;
         } else {
             MessageFormat form = new MessageFormat(SQLServerException.getErrString("R_InvalidConnectionSetting"));
             Object[] msgArgs = {"authentication", value};
@@ -123,6 +125,7 @@ enum SSLProtocol {
         this.name = name;
     }
 
+    @Override
     public String toString() {
         return name;
     }
@@ -204,6 +207,7 @@ enum ApplicationIntent {
     /**
      * Returns the string value of enum.
      */
+    @Override
     public String toString() {
         return value;
     }
@@ -247,6 +251,7 @@ enum SQLServerDriverObjectProperty {
         return defaultValue;
     }
 
+    @Override
     public String toString() {
         return name;
     }
@@ -280,7 +285,8 @@ enum SQLServerDriverStringProperty {
     KEY_STORE_AUTHENTICATION("keyStoreAuthentication", ""),
     KEY_STORE_SECRET("keyStoreSecret", ""),
     KEY_STORE_LOCATION("keyStoreLocation", ""),
-    SSL_PROTOCOL("sslProtocol", SSLProtocol.TLS.toString()),;
+    SSL_PROTOCOL("sslProtocol", SSLProtocol.TLS.toString()),
+    MSI_CLIENT_ID("msiClientId", ""),;
 
     private final String name;
     private final String defaultValue;
@@ -294,6 +300,7 @@ enum SQLServerDriverStringProperty {
         return defaultValue;
     }
 
+    @Override
     public String toString() {
         return name;
     }
@@ -323,6 +330,7 @@ enum SQLServerDriverIntProperty {
         return defaultValue;
     }
 
+    @Override
     public String toString() {
         return name;
     }
@@ -357,6 +365,7 @@ enum SQLServerDriverBooleanProperty {
         return defaultValue;
     }
 
+    @Override
     public String toString() {
         return name;
     }
@@ -476,7 +485,8 @@ public final class SQLServerDriver implements java.sql.Driver {
                     SQLServerDriverStringProperty.AUTHENTICATION.getDefaultValue(), false,
                     new String[] {SqlAuthentication.NotSpecified.toString(), SqlAuthentication.SqlPassword.toString(),
                             SqlAuthentication.ActiveDirectoryPassword.toString(),
-                            SqlAuthentication.ActiveDirectoryIntegrated.toString()}),
+                            SqlAuthentication.ActiveDirectoryIntegrated.toString(),
+                            SqlAuthentication.ActiveDirectoryMSI.toString()}),
             new SQLServerDriverPropertyInfo(SQLServerDriverIntProperty.SOCKET_TIMEOUT.toString(),
                     Integer.toString(SQLServerDriverIntProperty.SOCKET_TIMEOUT.getDefaultValue()), false, null),
             new SQLServerDriverPropertyInfo(SQLServerDriverBooleanProperty.FIPS.toString(),
@@ -504,7 +514,9 @@ public final class SQLServerDriver implements java.sql.Driver {
                     Integer.toString(SQLServerDriverIntProperty.CANCEL_QUERY_TIMEOUT.getDefaultValue()), false, null),
             new SQLServerDriverPropertyInfo(SQLServerDriverBooleanProperty.USE_BULK_COPY_FOR_BATCH_INSERT.toString(),
                     Boolean.toString(SQLServerDriverBooleanProperty.USE_BULK_COPY_FOR_BATCH_INSERT.getDefaultValue()),
-                    false, TRUE_FALSE),};
+                    false, TRUE_FALSE),
+            new SQLServerDriverPropertyInfo(SQLServerDriverStringProperty.MSI_CLIENT_ID.toString(),
+                    SQLServerDriverStringProperty.MSI_CLIENT_ID.getDefaultValue(), false, null),};
 
     /**
      * Properties that can only be set by using Properties. Cannot set in connection string
@@ -532,6 +544,7 @@ public final class SQLServerDriver implements java.sql.Driver {
         return baseID.incrementAndGet();
     }
 
+    @Override
     final public String toString() {
         return traceID;
     }
@@ -548,15 +561,43 @@ public final class SQLServerDriver implements java.sql.Driver {
 
     private final static java.util.logging.Logger drLogger = java.util.logging.Logger
             .getLogger("com.microsoft.sqlserver.jdbc.internals.SQLServerDriver");
+    private static java.sql.Driver mssqlDriver = null;
     // Register with the DriverManager
     static {
         try {
-            java.sql.DriverManager.registerDriver(new SQLServerDriver());
+            register();
         } catch (SQLException e) {
-            if (drLogger.isLoggable(Level.FINER) && Util.IsActivityTraceOn()) {
+            if (drLogger.isLoggable(Level.FINER) && Util.isActivityTraceOn()) {
                 drLogger.finer("Error registering driver: " + e);
             }
         }
+    }
+
+    /*
+     * Registers the driver with DriverManager. No-op if driver is already registered.
+     */
+    public static void register() throws SQLException {
+        if (!isRegistered()) {
+            mssqlDriver = new SQLServerDriver();
+            DriverManager.registerDriver(mssqlDriver);
+        }
+    }
+
+    /*
+     * De-registers the driver with the DriverManager. No-op if the driver is not registered.
+     */
+    public static void deregister() throws SQLException {
+        if (isRegistered()) {
+            DriverManager.deregisterDriver(mssqlDriver);
+            mssqlDriver = null;
+        }
+    }
+
+    /*
+     * Checks whether the driver has been registered with the driver manager.
+     */
+    public static boolean isRegistered() {
+        return mssqlDriver != null;
     }
 
     public SQLServerDriver() {
@@ -685,6 +726,7 @@ public final class SQLServerDriver implements java.sql.Driver {
         return null;
     }
 
+    @Override
     public java.sql.Connection connect(String Url, Properties suppliedProperties) throws SQLServerException {
         loggerExternal.entering(getClassNameLogging(), "connect", "Arguments not traced.");
         SQLServerConnection result = null;
@@ -724,6 +766,7 @@ public final class SQLServerDriver implements java.sql.Driver {
         return connectProperties;
     }
 
+    @Override
     public boolean acceptsURL(String url) throws SQLServerException {
         loggerExternal.entering(getClassNameLogging(), "acceptsURL", "Arguments not traced.");
 
@@ -742,6 +785,7 @@ public final class SQLServerDriver implements java.sql.Driver {
         return result;
     }
 
+    @Override
     public DriverPropertyInfo[] getPropertyInfo(String Url, Properties Info) throws SQLServerException {
         loggerExternal.entering(getClassNameLogging(), "getPropertyInfo", "Arguments not traced.");
 
@@ -763,22 +807,26 @@ public final class SQLServerDriver implements java.sql.Driver {
         return properties;
     }
 
+    @Override
     public int getMajorVersion() {
         loggerExternal.entering(getClassNameLogging(), "getMajorVersion");
         loggerExternal.exiting(getClassNameLogging(), "getMajorVersion", SQLJdbcVersion.major);
         return SQLJdbcVersion.major;
     }
 
+    @Override
     public int getMinorVersion() {
         loggerExternal.entering(getClassNameLogging(), "getMinorVersion");
         loggerExternal.exiting(getClassNameLogging(), "getMinorVersion", SQLJdbcVersion.minor);
         return SQLJdbcVersion.minor;
     }
 
-    public Logger getParentLogger() throws SQLFeatureNotSupportedException {
+    @Override
+    public Logger getParentLogger() {
         return parentLogger;
     }
 
+    @Override
     public boolean jdbcCompliant() {
         loggerExternal.entering(getClassNameLogging(), "jdbcCompliant");
         loggerExternal.exiting(getClassNameLogging(), "jdbcCompliant", Boolean.TRUE);
