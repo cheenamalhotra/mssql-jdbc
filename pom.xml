@@ -37,6 +37,8 @@
 
 	<scm>
 		<url>https://github.com/Microsoft/mssql-jdbc</url>
+		<connection>scm:git:https://github.com/Microsoft/mssql-jdbc</connection>
+		<developerConnection>scm:git:https://github.com/Microsoft/mssql-jdbc</developerConnection>
 	</scm>
 
 	<properties>
@@ -324,6 +326,13 @@
 			</testResource>
 		</testResources>
 		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-release-plugin</artifactId>
+				<configuration>
+					<tagBase>https://github.com/Microsoft/mssql-jdbc/tags</tagBase>
+				</configuration>
+			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-enforcer-plugin</artifactId>
