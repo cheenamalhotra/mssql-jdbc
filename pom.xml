@@ -36,9 +36,9 @@
 	</developers>
 
 	<scm>
-		<url>https://github.com/Microsoft/mssql-jdbc</url>
-		<connection>scm:git:git://github.com/Microsoft/mssql-jdbc.git</connection>
-		<developerConnection>scm:git:git@github.com:Microsoft/mssql-jdbc.git</developerConnection>
+		<url>https://github.com/cheenamalhotra/mssql-jdbc</url>
+		<connection>scm:git:git://github.com/cheenamalhotra/mssql-jdbc.git</connection>
+		<developerConnection>scm:git:git@github.com:cheenamalhotra/mssql-jdbc.git</developerConnection>
 	</scm>
 
 	<properties>
