@@ -300,12 +300,6 @@
 				</plugins>
 			</build>
 		</profile>
-		<profile>
-			<id>releaseSkipTests</id>
-			<properties>
-				<maven.test.skip>true</maven.test.skip>
-			</properties>
-		</profile>
 	</profiles>
 	<build>
 		<resources>
@@ -338,7 +332,7 @@
 				<version>2.5.3</version>
 				<configuration>
 					<tagBase>https://github.com/Microsoft/mssql-jdbc/tags</tagBase>
-					<releaseProfiles>releaseSkipTests</releaseProfiles>
+					<preparationGoals>clean verify -DskipTests</preparationGoals>
 				</configuration>
 			</plugin>
 			<plugin>
