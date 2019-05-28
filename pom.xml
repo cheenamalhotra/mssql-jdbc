@@ -69,7 +69,8 @@
 		<dbcp2.version>2.6.0</dbcp2.version>
 		<slf4j.nop.version>1.7.26</slf4j.nop.version>
 		<gemini.mock.version>2.1.0.RELEASE</gemini.mock.version>
-
+      	
+      	<project.scm.id>mssql-jdbc-server</project.scm.id>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>${project.build.sourceEncoding}</project.reporting.outputEncoding>
 		<enforcer.skip>false</enforcer.skip>
