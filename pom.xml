@@ -359,7 +359,7 @@
 				<version>2.5.3</version>
 				<configuration>
 					<tagNameFormat>v@{project.version}</tagNameFormat>
-					<tagBase>https://github.com/Microsoft/mssql-jdbc/tags</tagBase>
+					<tagBase>https://github.com/cheenamalhotra/mssql-jdbc/tags</tagBase>
 					<preparationGoals>clean verify -DskipTests</preparationGoals>
 					<releaseProfiles>release</releaseProfiles>
 				</configuration>
