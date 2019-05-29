@@ -41,6 +41,13 @@
 		<developerConnection>scm:git:git@github.com:cheenamalhotra/mssql-jdbc.git</developerConnection>
 	</scm>
 
+	<distributionManagement>
+		<repository>
+			<id>nexus-releases</id>
+			<url>http://localhost:8081/nexus/content/repositories/releases</url>
+		</repository>
+	</distributionManagement>
+
 	<properties>
 		<!-- Allowed values for excluded Groups here - - - - - - - - - - - - - 
 			xJDBC42 - - - - - - For tests not compatible with JDBC 42 Specifications 
@@ -69,8 +76,8 @@
 		<dbcp2.version>2.6.0</dbcp2.version>
 		<slf4j.nop.version>1.7.26</slf4j.nop.version>
 		<gemini.mock.version>2.1.0.RELEASE</gemini.mock.version>
-      	
-      	<project.scm.id>mssql-jdbc-server</project.scm.id>
+
+		<project.scm.id>mssql-jdbc-server</project.scm.id>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>${project.build.sourceEncoding}</project.reporting.outputEncoding>
 		<enforcer.skip>false</enforcer.skip>
@@ -301,6 +308,25 @@
 				</plugins>
 			</build>
 		</profile>
+		<profile>
+			<id>release</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.sonatype.plugins</groupId>
+						<artifactId>nexus-staging-maven-plugin</artifactId>
+						<version>1.6.8</version>
+						<extensions>true</extensions>
+						<configuration>
+							<!-- The Base URL of Nexus instance where we want to stage -->
+							<nexusUrl>http://localhost:8081/nexus/</nexusUrl>
+							<!-- The server "id" element from settings to use authentication from -->
+							<serverId>mssql-jdbc-nexus</serverId>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
 	</profiles>
 	<build>
 		<resources>
@@ -332,8 +358,10 @@
 				<artifactId>maven-release-plugin</artifactId>
 				<version>2.5.3</version>
 				<configuration>
+					<tagNameFormat>v@{project.version}</tagNameFormat>
 					<tagBase>https://github.com/Microsoft/mssql-jdbc/tags</tagBase>
 					<preparationGoals>clean verify -DskipTests</preparationGoals>
+					<releaseProfiles>release</releaseProfiles>
 				</configuration>
 			</plugin>
 			<plugin>
