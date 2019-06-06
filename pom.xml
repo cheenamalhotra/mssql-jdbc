@@ -37,8 +37,8 @@
 
 	<scm>
 		<url>https://github.com/cheenamalhotra/mssql-jdbc</url>
-		<connection>scm:git:git://github.com/cheenamalhotra/mssql-jdbc.git</connection>
-		<developerConnection>scm:git:git@github.com:cheenamalhotra/mssql-jdbc.git</developerConnection>
+		<connection>scm:git:https://github.com/cheenamalhotra/mssql-jdbc.git</connection>
+		<developerConnection>scm:git:https://github.com:cheenamalhotra/mssql-jdbc.git</developerConnection>
 	</scm>
 
 	<distributionManagement>
@@ -435,7 +435,6 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-release-plugin</artifactId>
-				<version>2.5.3</version>
 				<configuration>
 					<tagNameFormat>v@{project.version}</tagNameFormat>
 					<tagBase>https://github.com/cheenamalhotra/mssql-jdbc/tags</tagBase>
