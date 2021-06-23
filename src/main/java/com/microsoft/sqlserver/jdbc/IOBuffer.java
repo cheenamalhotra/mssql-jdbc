@@ -1061,7 +1061,7 @@ final class TDSChannel implements Serializable {
         /**
          * Bytes that have been read by a poll(s).
          */
-        private int cachedBytes[] = new int[10];;
+        private int cachedBytes[] = new int[1];
 
         /**
          * How many bytes have been cached.
@@ -1091,7 +1091,7 @@ final class TDSChannel implements Serializable {
 
                 // Increase the size of the cache, if needed (should be very rare).
                 if (cachedBytes.length <= cachedLength) {
-                    int temp[] = new int[cachedBytes.length + 10];
+                    int temp[] = new int[cachedLength + 1];
                     for (int i = 0; i < cachedBytes.length; i++) {
                         temp[i] = cachedBytes[i];
                     }
@@ -1101,18 +1101,21 @@ final class TDSChannel implements Serializable {
 
                 cachedBytes[cachedLength] = b;
                 cachedLength++;
-
                 return true;
             }
         }
 
-        public int getOneFromCache() {
+        public int getFirstFromCache() {
             int result = cachedBytes[0];
-            for (int i = 0; i < cachedLength; i++) {
-                cachedBytes[i] = cachedBytes[i + 1];
+            if(cachedLength > 1) {
+                // move bytes forward
+                int [] temp = new int[cachedLength-1];
+                for (int i = 0; i < cachedLength-1; i++) {
+                    temp[i] = cachedBytes[i + 1];
+                }
+                cachedBytes = temp;
             }
             cachedLength--;
-
             return result;
         }
 
@@ -1122,10 +1125,12 @@ final class TDSChannel implements Serializable {
 
                 if (logger.isLoggable(Level.FINEST))
                     logger.finest(toString() + " Skipping " + n + " bytes");
-
+                
+                assert(cachedLength == cachedBytes.length);
+                
                 while (cachedLength > 0 && bytesSkipped < n) {
+                    getFirstFromCache();
                     bytesSkipped++;
-                    getOneFromCache();
                 }
 
                 if (bytesSkipped < n) {
@@ -1140,12 +1145,14 @@ final class TDSChannel implements Serializable {
         }
 
         public int available() throws IOException {
-            int bytesAvailable = filteredStream.available() + cachedLength;
-
-            if (logger.isLoggable(Level.FINEST))
-                logger.finest(toString() + " " + bytesAvailable + " bytes available");
-
-            return bytesAvailable;
+            synchronized(this) {
+                int bytesAvailable = filteredStream.available() + cachedLength;
+    
+                if (logger.isLoggable(Level.FINEST))
+                    logger.finest(toString() + " " + bytesAvailable + " bytes available");
+    
+                return bytesAvailable;
+            }
         }
 
         private final byte oneByte[] = new byte[1];
@@ -1186,14 +1193,17 @@ final class TDSChannel implements Serializable {
                         throw e;
                     }
                 } else {
+                    if(cachedLength <0) {
+                        System.out.println("ERRORRR!!!");
+                    }
                     int offsetBytesToSkipInCache = Math.min(offset, cachedLength);
                     for (int i = 0; i < offsetBytesToSkipInCache; i++) {
-                        getOneFromCache();
+                        getFirstFromCache();
                     }
 
                     byte[] bytesFromCache = new byte[Math.min(maxBytes, cachedLength)];
                     for (int i = 0; i < bytesFromCache.length; i++) {
-                        bytesFromCache[i] = (byte) getOneFromCache();
+                        bytesFromCache[i] = (byte) getFirstFromCache();
                     }
 
                     try {
@@ -1220,12 +1230,14 @@ final class TDSChannel implements Serializable {
         }
 
         public boolean markSupported() {
-            boolean markSupported = filteredStream.markSupported();
-
-            if (logger.isLoggable(Level.FINEST))
-                logger.finest(toString() + " Returning markSupported: " + markSupported);
-
-            return markSupported;
+            synchronized (this) {
+                boolean markSupported = filteredStream.markSupported();
+    
+                if (logger.isLoggable(Level.FINEST))
+                    logger.finest(toString() + " Returning markSupported: " + markSupported);
+    
+                return markSupported;
+            }
         }
 
         public void mark(int readLimit) {

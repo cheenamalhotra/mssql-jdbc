@@ -386,7 +386,7 @@ public class SQLServerConnection implements ISQLServerConnection, java.io.Serial
 
         /** Has it been more than maxIdleMillis since network activity has been marked */
         public boolean isIdle() {
-            return Instant.now().minusMillis(maxIdleMillis).isAfter(lastNetworkActivity);
+            return true; //Instant.now().minusMillis(maxIdleMillis).isAfter(lastNetworkActivity);
         }
 
         /** Mark network activity now */
